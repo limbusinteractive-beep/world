@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WORLD//DATA — painel global ao vivo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#03060b;--fg:#cfe9ff;--dim:#5d7a92;--acc:#3df5ff;--hot:#ff4d6d;--warm:#ffb347;--ok:#5cffa1;--sun:#ffd84d;--line:rgba(61,245,255,.14)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--fg);font-family:'JetBrains Mono',monospace;overflow:hidden}
+  #globe{position:fixed;inset:0;width:100vw;height:100vh;cursor:grab}
+  #globe:active{cursor:grabbing}
+  .scan{display:none}
+  header{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 22px;gap:16px;z-index:2}
+  header h1{font-family:'Space Grotesk';font-weight:700;letter-spacing:.35em;font-size:15px;color:var(--acc)}
+  nav{display:flex;gap:4px}
+  nav button{letter-spacing:.2em;font-size:10px;padding:5px 12px}
+  nav button.on{border-color:var(--acc);color:var(--bg);background:var(--acc)}
+  header .clock{font-size:11px;color:var(--dim);letter-spacing:.12em;text-align:right}
+  .panel{position:fixed;top:52px;bottom:40px;width:340px;overflow-y:auto;padding:0 12px;scrollbar-width:thin;scrollbar-color:#1b2b3a transparent}
+  #left{left:6px} #right{right:6px}
+  section{border:1px solid var(--line);background:rgba(3,10,18,.74);backdrop-filter:blur(6px);margin-bottom:10px;padding:10px 12px}
+  section.hide{display:none}
+  section h2{font-family:'Space Grotesk';font-size:11px;letter-spacing:.28em;color:var(--acc);margin-bottom:8px;display:flex;justify-content:space-between;gap:8px}
+  section[data-theme=nat] h2{color:var(--warm)} section[data-theme=cos] h2{color:var(--sun)}
+  section h2 small{color:var(--dim);letter-spacing:.08em;font-weight:400;text-align:right}
+  .row{display:flex;justify-content:space-between;font-size:11.5px;padding:2px 0;gap:8px}
+  .row span:first-child{color:var(--dim)}
+  .row span:last-child{text-align:right}
+  .big{font-size:22px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums}
+  .num{font-variant-numeric:tabular-nums}
+  .grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:4px 0 6px}
+  .cell{border:1px solid var(--line);padding:5px 6px;min-width:0;overflow:hidden}
+  .cell b{display:block;font-size:16px;color:#fff;font-variant-numeric:tabular-nums}
+  .cell i{font-style:normal;font-size:9px;color:var(--dim);letter-spacing:.1em}
+  .cell em{font-style:normal;font-size:9.5px;color:var(--warm);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .list{max-height:160px;overflow-y:auto;font-size:11px}
+  .list div{padding:3px 0;border-bottom:1px dashed rgba(93,122,146,.18);cursor:pointer;display:flex;gap:6px}
+  .list div:hover{color:var(--acc)}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none;margin-top:4px}
+  .tag{font-size:9px;color:var(--dim);border:1px solid var(--line);padding:0 4px;margin-left:4px;white-space:nowrap;align-self:flex-start}
+  .tag.red{color:var(--hot);border-color:var(--hot)} .tag.orange{color:var(--warm);border-color:var(--warm)}
+  input,button,select{font-family:inherit;font-size:11px;background:#07131f;color:var(--fg);border:1px solid #1b3346;padding:4px 6px}
+  button{cursor:pointer} button:hover{border-color:var(--acc);color:var(--acc)}
+  .ctl{display:flex;gap:6px;margin:4px 0;align-items:center}
+  .ctl input{flex:1;min-width:0}
+  #tdStatus.on{color:var(--ok)} #tdStatus.off{color:var(--hot)}
+  #log{font-size:10px;color:var(--dim);max-height:110px;overflow-y:auto}
+  pre{font-size:10px;max-height:180px;overflow:auto;color:var(--dim);white-space:pre-wrap;word-break:break-all}
+  canvas.mini{width:100%;display:block;margin:4px 0}
+  .moonwrap{display:flex;gap:12px;align-items:center}
+  .legend{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:14px;font-size:10px;color:var(--dim);pointer-events:none;flex-wrap:wrap;justify-content:center;max-width:56vw}
+  .legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+  .note{font-size:9.5px;color:var(--dim);margin-top:6px;line-height:1.4}
+  .alert{color:var(--hot)}
+  #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+  .lbl{position:absolute;left:0;top:0;font-size:9.5px;color:#9fb6c8;white-space:nowrap;letter-spacing:.03em;text-shadow:0 0 3px #03060b,0 0 3px #03060b,0 0 2px #03060b}
+  .l-con{color:#ff9dff} .l-q{color:#ffa98a} .l-city{color:#8fffbf} .l-gd{color:#ff7b8f} .l-nat{color:#ffc98a}
+  .l-cos{color:#ffe38a} .l-min{color:#ffd27a} .l-part{color:#9fe8ff} .l-sel{color:#fff;font-size:11px;font-weight:600}
+  section[data-theme=eco] h2{color:#ffd27a}
+  .sub{font-size:9px;letter-spacing:.2em;color:var(--dim);margin:9px 0 3px}
+  .stack{display:flex;height:9px;border:1px solid var(--line);margin-bottom:2px;background:#0b1622}
+  .stack i{display:block;height:100%}
+  .legend2{display:flex;flex-wrap:wrap;gap:8px;font-size:9px;color:var(--dim);margin-top:4px}
+  .legend2 i{display:inline-block;width:7px;height:7px;margin-right:3px}
+  #wxBtns button.on{background:var(--warm);color:var(--bg);border-color:var(--warm)}
+  .l-cyc{color:#fff;font-weight:600} .l-aur{color:#7dffb0;font-weight:600}
+  #sunImg{width:100%;aspect-ratio:1;display:block;background:#000;border:1px solid var(--line);object-fit:cover}
+  #sunBtns button.on{background:var(--sun);color:var(--bg);border-color:var(--sun)}
+  .hamBig{font-family:'Space Grotesk';font-size:20px;font-weight:700;letter-spacing:.1em;margin:2px 0 4px}
+  .ham-good{color:var(--ok)} .ham-fair{color:var(--warm)} .ham-poor{color:var(--hot)} .ham-closed{color:var(--dim)}
+  table.ham{width:100%;border-collapse:collapse;font-size:11px;margin:4px 0}
+  table.ham td,table.ham th{padding:2px 4px;border-bottom:1px dashed rgba(93,122,146,.2);text-align:left}
+  table.ham th{color:var(--dim);font-weight:400;font-size:9px;letter-spacing:.15em}
+  .scales{display:flex;gap:6px;margin:4px 0}
+  .scales div{flex:1;border:1px solid var(--line);padding:4px;text-align:center}
+  .scales b{display:block;font-size:16px;color:#fff} .scales i{font-style:normal;font-size:9px;color:var(--dim)}
+  #minBtns{flex-wrap:wrap} #minBtns button.on{background:#ffd27a;color:var(--bg);border-color:#ffd27a}
+  .list a{color:inherit;text-decoration:none}
+  @media (max-width:1000px){.panel{width:46vw}}
+</style>
+</head>
+<body>
+<canvas id="globe"></canvas>
+<div id="labels"></div>
+<div class="scan"></div>
+<header>
+  <h1>WORLD//DATA</h1>
+  <nav id="nav">
+    <button data-t="all" class="on">TUDO</button>
+    <button data-t="hum">HUMANIDADE</button>
+    <button data-t="nat">NATUREZA</button>
+    <button data-t="cos">COSMOS</button>
+    <button data-t="eco">ECONOMIA</button>
+  </nav>
+  <div class="clock" id="clock">--</div>
+</header>
+
+<div class="panel" id="left">
+  <!-- ================= HUMANIDADE ================= -->
+  <section data-theme="hum">
+    <h2>POPULAÇÃO <small>estimativa ONU</small></h2>
+    <div class="big num" id="pop">—</div>
+    <div class="row"><span>nascimentos hoje (UTC)</span><span class="num" id="births">—</span></div>
+    <div class="row"><span>mortes hoje (UTC)</span><span class="num" id="deaths">—</span></div>
+    <div class="row"><span>crescimento hoje</span><span class="num" id="growth">—</span></div>
+    <div class="row"><span>nascimentos / mortes por segundo</span><span class="num" id="rates">—</span></div>
+    <div class="note">Contadores a partir de taxas anuais (UN World Population Prospects 2024, aproximado), não medição direta.</div>
+  </section>
+  <section data-theme="hum">
+    <h2>CARBONO & ATMOSFERA <small>NOAA via global-warming.org</small></h2>
+    <div class="row"><span>CO₂ fóssil emitido hoje</span><span class="num" id="co2">—</span></div>
+    <div class="row"><span>CO₂ por segundo</span><span class="num" id="co2s">—</span></div>
+    <div class="row"><span>CO₂ atmosférico</span><span class="num" id="co2ppm">—</span></div>
+    <div class="row"><span>metano atmosférico</span><span class="num" id="ch4">—</span></div>
+    <div class="row"><span>anomalia de temperatura</span><span class="num" id="tanom">—</span></div>
+    <div class="note">Emissões: ~38 Gt CO₂/ano (Global Carbon Project, ordem de grandeza). Concentrações e anomalia: últimos valores publicados.</div>
+  </section>
+  <section data-theme="hum">
+    <h2>ENERGIA & DATACENTERS <small>estimativa</small></h2>
+    <div class="row"><span>energia primária hoje</span><span class="num" id="energy">—</span></div>
+    <div class="row"><span>potência média mundial</span><span class="num" id="power">—</span></div>
+    <div class="row"><span>datacenters: consumo anual atual</span><span class="num" id="dcY">—</span></div>
+    <div class="row"><span>datacenters: potência média</span><span class="num" id="dcP">—</span></div>
+    <div class="row"><span>datacenters: energia hoje</span><span class="num" id="dcT">—</span></div>
+    <div class="row"><span>≈ casas europeias equivalentes</span><span class="num" id="dcH">—</span></div>
+    <div class="note">Datacenters: interpolação entre ~415 TWh (2024) e ~945 TWh projetados para 2030 (IEA, Energy and AI, 2025). Casa média ≈ 3,6 MWh/ano.</div>
+  </section>
+  <section data-theme="hum">
+    <h2>MERCADOS <small id="mktT">—</small></h2>
+    <div class="row"><span>Bitcoin</span><span class="num" id="btc">—</span></div>
+    <div class="row"><span>Ethereum</span><span class="num" id="eth">—</span></div>
+    <div class="row"><span>Brent crude</span><span class="num" id="brent">requer chave EIA</span></div>
+    <div class="ctl"><input id="eiaKey" placeholder="chave gratuita EIA (opcional)"><button id="eiaSave">ok</button></div>
+  </section>
+  <section data-theme="hum">
+    <h2>CONFLITOS ATIVOS <small>lista editável</small></h2>
+    <div class="list" id="conflicts"></div>
+    <div class="note">Lista estática (meados de 2026). Confirma e edita a constante CONFLICTS no código.</div>
+  </section>
+  <section data-theme="hum">
+    <h2>NOTÍCIAS: CONFLITO <small>GDELT</small></h2>
+    <div class="list" id="news"></div>
+  </section>
+
+  <!-- ================= ECONOMIA ================= -->
+  <section data-theme="eco">
+    <h2>PAÍS <small>clica no globo</small></h2>
+    <div class="ctl"><select id="ecoSel" style="flex:1"></select></div>
+    <div class="big" id="ecoName" style="font-size:18px">—</div>
+    <div class="row"><span id="ecoMeta">—</span></div>
+    <div id="ecoStats"></div>
+    <div class="sub">RESERVAS MINERAIS DO PAÍS</div>
+    <div id="ecoMin" style="font-size:11px"></div>
+    <div class="note">População, PIB, comércio e rendas: World Bank (último ano disponível).</div>
+  </section>
+  <section data-theme="eco">
+    <h2>SALÁRIO MÍNIMO <small>2026</small></h2>
+    <div class="big num" id="ecoMW">—</div>
+    <div class="row"><span>em vigor desde</span><span id="ecoMWd">—</span></div>
+    <div class="row"><span>≈ por hora (173 h/mês)</span><span class="num" id="ecoMWh">—</span></div>
+    <div class="row"><span>PIB per capita por mês</span><span class="num" id="ecoGdpM">—</span></div>
+    <div class="note">USD/mês às taxas de câmbio de 2026; com valores regionais, usa-se o mais baixo. Fonte: compilação employerrecords.com a partir de fontes oficiais — confirmar antes de publicar.</div>
+  </section>
+  <section data-theme="eco">
+    <h2>COMÉRCIO <small id="ecoTradeSrc">World Bank · UN Comtrade</small></h2>
+    <div class="row"><span>exportações (bens e serviços)</span><span class="num" id="ecoExp">—</span></div>
+    <div class="row"><span>importações (bens e serviços)</span><span class="num" id="ecoImp">—</span></div>
+    <div class="row"><span>balança</span><span class="num" id="ecoBal">—</span></div>
+    <div class="sub">O QUE EXPORTA · mercadorias</div><div class="stack" id="ecoXbar"></div>
+    <div class="sub">O QUE IMPORTA · mercadorias</div><div class="stack" id="ecoMbar"></div>
+    <div class="legend2"><span><i style="background:#5cffa1"></i>alimentos</span><span><i style="background:#b6e36b"></i>matérias agrícolas</span><span><i style="background:#ff6a3d"></i>combustíveis</span><span><i style="background:#ffd27a"></i>minérios e metais</span><span><i style="background:#3df5ff"></i>manufaturas</span><span><i style="background:#33485a"></i>outros</span></div>
+    <div class="sub">PRINCIPAIS PRODUTOS EXPORTADOS</div><div class="list" id="ecoXprod"></div>
+    <div class="sub">PRINCIPAIS PRODUTOS IMPORTADOS</div><div class="list" id="ecoMprod"></div>
+    <div class="sub">PARA ONDE EXPORTA</div><div class="list" id="ecoXpart"></div>
+    <div class="sub">DE ONDE IMPORTA</div><div class="list" id="ecoMpart"></div>
+    <div class="note" id="ecoTradeNote"></div>
+  </section>
+
+  <!-- ================= COSMOS ================= -->
+  <section data-theme="cos">
+    <h2>SOL HOJE <small><select id="citySel"></select></small></h2>
+    <div class="grid3">
+      <div class="cell"><i>NASCER</i><b id="sRise">—</b></div>
+      <div class="cell"><i>MEIO-DIA</i><b id="sNoon">—</b></div>
+      <div class="cell"><i>PÔR</i><b id="sSet">—</b></div>
+    </div>
+    <div class="row"><span>duração do dia</span><span class="num" id="sLen">—</span></div>
+    <div class="row"><span>vs. ontem</span><span class="num" id="sDelta">—</span></div>
+    <div class="row"><span>hora dourada (tarde)</span><span class="num" id="sGold">—</span></div>
+    <div class="row"><span>elevação / azimute agora</span><span class="num" id="sAlt">—</span></div>
+    <div class="row"><span>ponto subsolar</span><span class="num" id="sSub">—</span></div>
+    <div class="row"><span>próximo solstício / equinócio</span><span class="num" id="sSeason">—</span></div>
+  </section>
+  <section data-theme="cos">
+    <h2>SOL AO VIVO <small id="sunImgT">NASA SDO</small></h2>
+    <div class="ctl" id="sunBtns">
+      <button data-k="0193" class="on" title="AIA 193 Å — buracos coronais aparecem escuros">193 Å · buracos</button>
+      <button data-k="0171" title="AIA 171 Å — arcos coronais">171 Å</button>
+      <button data-k="0304" title="AIA 304 Å — cromosfera, proeminências">304 Å</button>
+      <button data-k="HMIB" title="HMI — magnetograma">campo mag.</button>
+      <button data-k="HMIIC" title="HMI — manchas solares (luz visível)">manchas</button>
+    </div>
+    <img id="sunImg" alt="Sol (NASA SDO)">
+    <div class="note" id="sunImgNote">193 Å: as zonas escuras são buracos coronais — de lá sai vento solar rápido que, virado para a Terra, chega 2–4 dias depois e pode dar tempestades geomagnéticas e auroras.</div>
+  </section>
+  <section data-theme="cos">
+    <h2>ERUPÇÕES · RAIOS-X <small>GOES (NOAA)</small></h2>
+    <div class="row"><span>fluxo agora (0,1–0,8 nm)</span><span class="num" id="xrNow">—</span></div>
+    <div class="row"><span>máximo 24 h</span><span class="num" id="xrMax">—</span></div>
+    <canvas class="mini" id="xrCv" width="600" height="170"></canvas>
+    <div class="sub">ERUPÇÕES · ÚLTIMOS 7 DIAS</div>
+    <div class="list" id="flares" style="max-height:130px"></div>
+    <div class="note">Classes A·B·C·M·X: cada classe é 10× a anterior. M e X podem cortar comunicações HF no lado de dia (escala R).</div>
+  </section>
+  <section data-theme="cos">
+    <h2>LUA <small>cálculo local</small></h2>
+    <div class="moonwrap">
+      <canvas id="moonCv" width="96" height="96" style="width:64px;height:64px"></canvas>
+      <div style="flex:1">
+        <div class="row"><span>fase</span><span id="mName">—</span></div>
+        <div class="row"><span>iluminação</span><span class="num" id="mIll">—</span></div>
+        <div class="row"><span>idade</span><span class="num" id="mAge">—</span></div>
+      </div>
+    </div>
+    <div class="row"><span>próxima lua cheia</span><span class="num" id="mFull">—</span></div>
+    <div class="row"><span>próxima lua nova</span><span class="num" id="mNew">—</span></div>
+    <div class="row"><span>distância à Terra</span><span class="num" id="mDist">—</span></div>
+    <div class="row"><span>ponto sublunar</span><span class="num" id="mSub">—</span></div>
+  </section>
+</div>
+
+<div class="panel" id="right">
+  <!-- ================= NATUREZA ================= -->
+  <section data-theme="nat">
+    <h2>SISMOS <small>USGS</small></h2>
+    <div class="grid3">
+      <div class="cell"><i>ÚLTIMA HORA</i><b id="qH">—</b><em id="qHm">—</em></div>
+      <div class="cell"><i>24 HORAS</i><b id="qD">—</b><em id="qDm">—</em></div>
+      <div class="cell"><i>7 DIAS</i><b id="qW">—</b><em id="qWm">—</em></div>
+    </div>
+    <div class="row"><span>mais forte em 30 dias</span><span class="num" id="qM">—</span></div>
+    <div class="row"><span>energia libertada 24h (≈)</span><span class="num" id="qE">—</span></div>
+    <div class="list" id="quakes"></div>
+  </section>
+  <section data-theme="nat">
+    <h2>TSUNAMIS & SISMOS SIGNIFICATIVOS <small>30 dias</small></h2>
+    <div class="list" id="tsunami"></div>
+    <div class="note">Sinal "tsunami" do USGS = o evento estava em zona/magnitude que justifica consultar os centros de alerta (não confirma tsunami). Oficial: tsunami.gov</div>
+  </section>
+  <section data-theme="nat">
+    <h2>ALERTAS DE DESASTRE <small>GDACS</small></h2>
+    <div id="gdacsCounts"></div>
+    <div class="list" id="gdacs"></div>
+    <div class="note">Ciclones, cheias, sismos, vulcões, secas e incêndios com nível de alerta verde/laranja/vermelho.</div>
+  </section>
+  <section data-theme="nat">
+    <h2>TEMPO ATMOSFÉRICO <small id="wxT">Open-Meteo · NHC · GDACS</small></h2>
+    <div class="ctl" id="wxBtns"><button data-k="temp" class="on">temperatura</button><button data-k="wind" class="on">vento</button><button data-k="cyc" class="on">ciclones</button></div>
+    <div class="stack" style="height:8px;background:linear-gradient(90deg,#8c59ff,#4d80ff,#4de6ff,#66ff99,#ffe659,#ff8033,#ff2640)"></div>
+    <div class="row" style="font-size:9px"><span>−40°</span><span>−20°</span><span>0°</span><span>10°</span><span>20°</span><span>30°</span><span>40°</span></div>
+    <div class="row"><span>média da grelha (2 m)</span><span class="num" id="wxMean">—</span></div>
+    <div class="row"><span>mais quente / mais frio</span><span class="num" id="wxMinMax">—</span></div>
+    <div class="row"><span>vento mais forte</span><span class="num" id="wxWindMax">—</span></div>
+    <div class="sub">CICLONES ATIVOS E RECENTES</div>
+    <div class="list" id="cyclones"></div>
+    <div class="note">Grelha de 15° (264 pontos, atualiza de hora a hora) interpolada; partículas seguem o vento a 10 m. Ciclones: NHC (Atlântico/Pacífico Este e Central) e GDACS (global).</div>
+  </section>
+  <section data-theme="nat">
+    <h2>EVENTOS NATURAIS ABERTOS <small>NASA EONET</small></h2>
+    <div id="eonetCounts"></div>
+    <div class="list" id="eonet"></div>
+  </section>
+  <section data-theme="nat">
+    <h2>CLIMA AGORA <small>Open-Meteo</small></h2>
+    <div class="list" id="weather"></div>
+  </section>
+
+  <!-- ================= COSMOS ================= -->
+  <section data-theme="cos">
+    <h2>CICLO SOLAR <small>NOAA SWPC</small></h2>
+    <div class="row"><span>manchas solares (mês)</span><span class="num" id="ssn">—</span></div>
+    <div class="row"><span>média suavizada</span><span class="num" id="ssnS">—</span></div>
+    <canvas class="mini" id="ssnCv" width="600" height="110"></canvas>
+    <div class="row"><span>índice Kp (geomagnético)</span><span class="num" id="kp">—</span></div>
+    <div class="row"><span>vento solar</span><span class="num" id="wind">—</span></div>
+    <div class="row"><span>última erupção (raio-X)</span><span class="num" id="flare">—</span></div>
+    <div class="note">Ciclo Solar 25. Kp ≥ 5 = tempestade geomagnética (auroras mais a sul).</div>
+  </section>
+  <section data-theme="cos">
+    <h2>AURORAS <small id="aurT">NOAA OVATION</small></h2>
+    <div class="hamBig" id="aurStatus">—</div>
+    <div class="row"><span>máx. probabilidade norte / sul</span><span class="num" id="aurMax">—</span></div>
+    <div class="row"><span>área com aurora (≥10%)</span><span class="num" id="aurArea">—</span></div>
+    <div class="row"><span>limite equatorial (≥10%) na long. de <span id="aurCity">—</span></span><span class="num" id="aurEdge">—</span></div>
+    <div class="row"><span>na cidade selecionada</span><span id="aurHere">—</span></div>
+    <div class="note">Previsão de curto prazo (30–90 min). Verde no globo = probabilidade de aurora visível. Precisa de céu escuro e limpo.</div>
+  </section>
+  <section data-theme="cos">
+    <h2>RADIOAMADOR · HF <small id="hamT">estimativa</small></h2>
+    <div class="hamBig" id="hamStatus">—</div>
+    <div class="row" style="display:block;color:var(--fg);font-size:11px;line-height:1.45" id="hamSummary">—</div>
+    <div class="scales">
+      <div><i>RÁDIO (R)</i><b id="scR">—</b><i id="scRt"></i></div>
+      <div><i>RADIAÇÃO (S)</i><b id="scS">—</b><i id="scSt"></i></div>
+      <div><i>GEOMAG. (G)</i><b id="scG">—</b><i id="scGt"></i></div>
+    </div>
+    <div class="row"><span>fluxo solar SFI (10,7 cm)</span><span class="num" id="hamSfi">—</span></div>
+    <div class="row"><span>Kp / índice A</span><span class="num" id="hamKA">—</span></div>
+    <table class="ham"><thead><tr><th>BANDAS</th><th>DIA</th><th>NOITE</th></tr></thead><tbody id="hamBands"></tbody></table>
+    <div class="row"><span>VHF por aurora (6 m / 2 m)</span><span id="hamVhf">—</span></div>
+    <div class="note">Estimativa heurística a partir de SFI, Kp e escalas NOAA (no estilo hamqsl). Dia/noite referem-se à cidade selecionada no painel do Sol. Confirmar com beacons (NCDXF) e DX cluster.</div>
+  </section>
+  <section data-theme="cos">
+    <h2>PLANETAS & ALINHAMENTOS <small>geocêntrico</small></h2>
+    <canvas class="mini" id="skyCv" width="600" height="600"></canvas>
+    <div class="row"><span>visíveis a olho nu</span><span id="parade">—</span></div>
+    <div class="list" id="planets" style="max-height:200px"></div>
+  </section>
+  <section data-theme="cos">
+    <h2>EVENTOS CÓSMICOS <small>próximos 60 dias</small></h2>
+    <div class="list" id="cosEvents" style="max-height:220px"></div>
+    <div class="note">Conjunções calculadas localmente (elementos orbitais JPL, precisão ~0,5°). Eclipses e chuvas de meteoros: tabela fixa.</div>
+  </section>
+  <section data-theme="cos">
+    <h2>ESPAÇO <small>ISS ao vivo</small></h2>
+    <div class="row"><span>lat / lon</span><span class="num" id="iss">—</span></div>
+    <div class="row"><span>altitude / velocidade</span><span class="num" id="issAlt">—</span></div>
+  </section>
+
+  <!-- ================= ECONOMIA ================= -->
+  <section data-theme="eco">
+    <h2>RESERVAS MINERAIS <small>USGS MCS 2026</small></h2>
+    <div class="ctl" id="minBtns"></div>
+    <div class="row"><span>reservas mundiais</span><span class="num" id="minWorld">—</span></div>
+    <div class="list" id="minList" style="max-height:280px"></div>
+    <div class="note">Reservas = depósitos conhecidos e economicamente extraíveis hoje. Valores da Austrália e da Rússia lidos junto a notas de rodapé do PDF — verificar na fonte.</div>
+  </section>
+
+  <!-- ================= SISTEMA ================= -->
+  <section data-theme="sys">
+    <h2>PONTE TOUCHDESIGNER <small id="tdStatus" class="off">desligado</small></h2>
+    <div class="ctl"><input id="tdUrl" value="ws://localhost:9980"><button id="tdBtn">ligar</button></div>
+    <div class="ctl"><span style="color:var(--dim)">snapshot cada</span><input id="tdInt" value="2" style="max-width:50px"><span style="color:var(--dim)">s</span></div>
+    <div class="row"><span>mensagens enviadas</span><span class="num" id="tdSent">0</span></div>
+    <div class="ctl"><button id="showJson">ver JSON</button><button id="copyJson">copiar JSON</button></div>
+    <pre id="json" hidden></pre>
+  </section>
+  <section data-theme="sys">
+    <h2>LOG</h2>
+    <div id="log"></div>
+  </section>
+</div>
+
+<div class="legend">
+  <span><i style="background:#ff6a3d"></i>sismo</span>
+  <span><i style="background:#ffb347"></i>incêndio</span>
+  <span><i style="background:#8fd3ff"></i>tempestade</span>
+  <span><i style="background:#ff2e4d"></i>vulcão / alerta</span>
+  <span><i style="background:#4d9aff"></i>cheia</span>
+  <span><i style="background:#ff4dff"></i>conflito</span>
+  <span><i style="background:#5cffa1"></i>cidade</span>
+  <span><i style="background:#ffd84d"></i>sol</span>
+  <span><i style="background:#d8e4ff"></i>lua · ISS</span>
+  <span><i style="background:#ffffff"></i>ciclone · vento</span>
+  <span><i style="background:#5cff8a"></i>aurora</span>
+  <span><i style="background:#ffd27a"></i>minério</span>
+  <span><i style="background:#9fe8ff"></i>comércio</span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   CONFIG
+   ============================================================ */
+const CONFLICTS = [
+  {name:"Rússia–Ucrânia",            lat:48.5, lon:37.5},
+  {name:"Sudão (guerra civil)",      lat:15.5, lon:32.5},
+  {name:"Myanmar (guerra civil)",    lat:21.0, lon:96.0},
+  {name:"Gaza / Israel",             lat:31.4, lon:34.4},
+  {name:"RD Congo (leste, M23)",     lat:-1.6, lon:29.2},
+  {name:"Sahel (Mali/Burkina/Níger)",lat:14.0, lon:-1.5},
+  {name:"Iémen",                     lat:15.4, lon:44.2},
+  {name:"Somália",                   lat:2.0,  lon:45.3},
+  {name:"Haiti (violência armada)",  lat:18.5, lon:-72.3},
+];
+const CITIES = [
+  {name:"Lisboa",lat:38.72,lon:-9.14},{name:"Porto",lat:41.15,lon:-8.61},{name:"Évora",lat:38.57,lon:-7.91},
+  {name:"Nova Iorque",lat:40.71,lon:-74.0},{name:"São Paulo",lat:-23.55,lon:-46.63},{name:"Lagos",lat:6.52,lon:3.38},
+  {name:"Mumbai",lat:19.08,lon:72.88},{name:"Tóquio",lat:35.68,lon:139.69},{name:"Sydney",lat:-33.87,lon:151.21},
+  {name:"Reiquiavique",lat:64.15,lon:-21.94},{name:"Cairo",lat:30.04,lon:31.24},{name:"Cidade do México",lat:19.43,lon:-99.13},
+];
+// eclipses (tabela fixa — confirmar em eclipse.gsfc.nasa.gov)
+const ECLIPSES = [
+  {date:"2027-02-06", name:"Eclipse solar anular (América do Sul, Atlântico, África Ocidental)"},
+  {date:"2027-02-20", name:"Eclipse lunar penumbral"},
+  {date:"2027-07-18", name:"Eclipse lunar penumbral"},
+  {date:"2027-08-02", name:"Eclipse solar TOTAL (sul de Espanha, Norte de África, Egito)"},
+  {date:"2027-08-17", name:"Eclipse lunar penumbral"},
+];
+// chuvas de meteoros: pico aproximado (mês, dia)
+const METEORS = [
+  {m:1,d:3,name:"Quadrântidas"},{m:4,d:22,name:"Líridas"},{m:5,d:6,name:"Eta Aquáridas"},
+  {m:7,d:30,name:"Delta Aquáridas"},{m:8,d:12,name:"Perseidas"},{m:10,d:21,name:"Oriónidas"},
+  {m:11,d:17,name:"Leónidas"},{m:12,d:14,name:"Gemínidas"},{m:12,d:22,name:"Úrsidas"},
+];
+// taxas anuais aproximadas
+const POP_REF = 8.30e9, POP_REF_T = Date.UTC(2026,6,1);
+const BIRTHS_Y = 132e6, DEATHS_Y = 63e6, YEAR_S = 365.25*86400;
+const ENERGY_Y_J = 640e18, CO2_Y_T = 38e9;
+const DC_TWH_2024 = 415, DC_TWH_2030 = 945, DC_T0 = Date.UTC(2024,6,1);
+
+const COL = {quake:[1,.42,.24], wildfires:[1,.7,.28], severeStorms:[.56,.83,1], volcanoes:[1,.18,.3],
+  seaLakeIce:[.7,.9,1], floods:[.3,.6,1], drought:[.85,.65,.3], other:[.8,.8,.8], conflict:[1,.3,1], city:[.36,1,.63],
+  iss:[1,1,1], sun:[1,.85,.3], moon:[.85,.9,1], Red:[1,.18,.3], Orange:[1,.62,.2], Green:[.4,.9,.5]};
+const COL_ECO = {mineral:[1,.82,.48], expo:[.62,.91,1], impo:[1,.55,.75], sel:[1,1,1]};
+const ECO = {"NUM2ISO":{"533":"ABW","4":"AFG","24":"AGO","660":"AIA","248":"ALA","8":"ALB","20":"AND","784":"ARE","32":"ARG","51":"ARM","16":"ASM","10":"ATA","260":"ATF","28":"ATG","36":"AUS","40":"AUT","31":"AZE","108":"BDI","56":"BEL","204":"BEN","535":"BES","854":"BFA","50":"BGD","100":"BGR","48":"BHR","44":"BHS","70":"BIH","652":"BLM","112":"BLR","84":"BLZ","60":"BMU","68":"BOL","76":"BRA","52":"BRB","96":"BRN","64":"BTN","74":"BVT","72":"BWA","140":"CAF","124":"CAN","166":"CCK","756":"CHE","152":"CHL","156":"CHN","384":"CIV","120":"CMR","180":"COD","178":"COG","184":"COK","170":"COL","174":"COM","132":"CPV","188":"CRI","192":"CUB","531":"CUW","162":"CXR","136":"CYM","196":"CYP","203":"CZE","276":"DEU","262":"DJI","212":"DMA","208":"DNK","214":"DOM","12":"DZA","218":"ECU","818":"EGY","232":"ERI","732":"ESH","724":"ESP","233":"EST","231":"ETH","246":"FIN","242":"FJI","238":"FLK","250":"FRA","234":"FRO","583":"FSM","266":"GAB","826":"GBR","268":"GEO","831":"GGY","288":"GHA","292":"GIB","324":"GIN","312":"GLP","270":"GMB","624":"GNB","226":"GNQ","300":"GRC","308":"GRD","304":"GRL","320":"GTM","254":"GUF","316":"GUM","328":"GUY","344":"HKG","334":"HMD","340":"HND","191":"HRV","332":"HTI","348":"HUN","360":"IDN","833":"IMN","356":"IND","86":"IOT","372":"IRL","364":"IRN","368":"IRQ","352":"ISL","376":"ISR","380":"ITA","388":"JAM","832":"JEY","400":"JOR","392":"JPN","398":"KAZ","404":"KEN","417":"KGZ","116":"KHM","296":"KIR","659":"KNA","410":"KOR","414":"KWT","418":"LAO","422":"LBN","430":"LBR","434":"LBY","662":"LCA","438":"LIE","144":"LKA","426":"LSO","440":"LTU","442":"LUX","428":"LVA","446":"MAC","663":"MAF","504":"MAR","492":"MCO","498":"MDA","450":"MDG","462":"MDV","484":"MEX","584":"MHL","807":"MKD","466":"MLI","470":"MLT","104":"MMR","499":"MNE","496":"MNG","580":"MNP","508":"MOZ","478":"MRT","500":"MSR","474":"MTQ","480":"MUS","454":"MWI","458":"MYS","175":"MYT","516":"NAM","540":"NCL","562":"NER","574":"NFK","566":"NGA","558":"NIC","570":"NIU","528":"NLD","578":"NOR","524":"NPL","520":"NRU","554":"NZL","512":"OMN","586":"PAK","591":"PAN","612":"PCN","604":"PER","608":"PHL","585":"PLW","598":"PNG","616":"POL","630":"PRI","408":"PRK","620":"PRT","600":"PRY","275":"PSE","258":"PYF","634":"QAT","638":"REU","642":"ROU","643":"RUS","646":"RWA","682":"SAU","729":"SDN","686":"SEN","702":"SGP","239":"SGS","654":"SHN","744":"SJM","90":"SLB","694":"SLE","222":"SLV","674":"SMR","706":"SOM","666":"SPM","688":"SRB","728":"SSD","678":"STP","740":"SUR","703":"SVK","705":"SVN","752":"SWE","748":"SWZ","534":"SXM","690":"SYC","760":"SYR","796":"TCA","148":"TCD","768":"TGO","764":"THA","762":"TJK","772":"TKL","795":"TKM","626":"TLS","776":"TON","780":"TTO","788":"TUN","792":"TUR","798":"TUV","158":"TWN","834":"TZA","800":"UGA","804":"UKR","581":"UMI","858":"URY","840":"USA","860":"UZB","336":"VAT","670":"VCT","862":"VEN","92":"VGB","850":"VIR","704":"VNM","548":"VUT","876":"WLF","882":"WSM","887":"YEM","710":"ZAF","894":"ZMB","716":"ZWE","-99":"XKX"},"MINWAGE":{"LUX":[3146,"2026-06"],"AUS":[3034,"2026-07"],"GBR":[2930,"2026-04"],"DEU":[2735,"2026-01"],"IRL":[2714,"2026-01"],"NLD":[2654,"2026-07"],"BEL":[2536,"2026-07"],"MCO":[2361,"2026-06"],"NZL":[2344,"2026-04"],"FRA":[2119,"2026-06"],"ISR":[2096,"2026-04"],"CAN":[1834,"varia por região"],"SVN":[1682,"2026-01"],"ESP":[1617,"2026-01"],"KOR":[1592,"2026-01"],"LTU":[1309,"2026-01"],"USA":[1257,"varia por estado"],"POL":[1250,"2026-01"],"CYP":[1235,"2026-01"],"GRC":[1218,"2026-04"],"PRT":[1218,"2026-01"],"HRV":[1192,"2026-01"],"JPN":[1129,"varia por prefeitura"],"MLT":[1129,"2026-01"],"EST":[1074,"2026-04"],"CZE":[1068,"2026-01"],"SVK":[1039,"2026-01"],"HUN":[1001,"2026-01"],"HKG":[952,"2026-05"],"ROU":[931,"2026-07"],"TWN":[926,"2026-01"],"LVA":[885,"2026-01"],"KNA":[802,"2025-07"],"MHL":[780,"2025-10"],"ATG":[738,"2026-04"],"MKD":[712,"2026-03"],"BGR":[704,"2026-01"],"URY":[683,"2026-07"],"MNE":[681,"2024-10"],"TUR":[674,"2026-01"],"SRB":[622,"2026-01"],"ALB":[619,"2026-01"],"GTM":[583,"2026-01"],"BIH":[581,"2026-01"],"DMA":[578,"2025-12"],"COL":[570,"2026-01"],"CHL":[569,"2026-05"],"PRY":[565,"2026-07"],"ECU":[562,"2026-01"],"MEX":[528,"2026-01"],"SYC":[515,"2025-04"],"VUT":[488,"2023-06"],"FJI":[469,"2025-04"],"JAM":[463,"2026-07"],"MYS":[417,"2025-02"],"PER":[417,"2026-10"],"JOR":[410,"2025-01"],"TKM":[404,"2025-01"],"MUS":[404,"2026-01"],"VCT":[370,"2024-03"],"ZAF":[360,"2026-03"],"MDA":[358,"2026-01"],"MAR":[353,"2026-01"],"WSM":[341,"2026-07"],"BRA":[337,"2026-01"],"RUS":[326,"2026-01"],"LBN":[313,"2025-07"],"DOM":[311,"2026-02"],"BOL":[299,"2026-01"],"BLR":[283,"2026-01"],"QAT":[275,"2021-03"],"ARG":[274,"2026-10"],"ZWE":[270,"2026-06"],"CHN":[268,"varia por província"],"THA":[261,"2025"],"KWT":[244,"2017-06"],"COD":[243,"2026-01"],"AZE":[235,"2025-01"],"MNG":[220,"2025-04"],"NAM":[214,"2025-01"],"SLB":[201,"2019-08"],"PNG":[195,"2026-01"],"UKR":[194,"2026-01"],"KAZ":[193,"2024-01"],"TUN":[187,"2026-01"],"PHL":[185,"2026-08"],"DZA":[180,"2026-01"],"CPV":[175,"2025-01"],"HTI":[164,"2026-05"],"LBY":[157,"2023-05"],"IND":[153,"2026-10"],"PAK":[147,"2026-07"],"VNM":[143,"2026-01"],"EGY":[135,"2025-03"],"CUB":[134,"2026-07"],"CIV":[131,"2023-01"],"IDN":[130,"2026-01"],"NPL":[128,"2025-07"],"COG":[122,"2025-01"],"UZB":[115,"2026-09"],"SEN":[112,"2023-07"],"LAO":[112,"2024-10"],"IRN":[105,"2026-03"],"TCD":[104,"2011-01"],"SYR":[103,"2026-06"],"TGO":[92,"2023-01"],"LKA":[91,"2026-01"],"BFA":[78,"2024-01"],"MWI":[75,"2026-06"],"KEN":[74,"2026-05"],"NER":[73,"?"],"MDG":[72,"2026-10"],"MMR":[55,"2025-10"],"AGO":[55,"2024-09"],"NGA":[53,"2024-07"],"SLE":[49,"2026-04"],"GHA":[40,"2026-01"],"KGZ":[38,"2026-01"],"CHE":[4152,"2026-01"],"ARE":[1634,"2026-01"],"SAU":[1067,"2021-04"],"CRI":[891,"2026-01"],"PLW":[867,"2025-10"],"HND":[559,"2026-01"],"GRD":[481,"2024-01"],"SLV":[409,"2025-06"],"TZA":[66,"2026-01"],"VEN":[1,"?"],"AUT":[null,""],"BGD":[null,""],"DNK":[null,""],"ETH":[null,""],"FIN":[null,""],"ISL":[null,""],"ITA":[null,""],"MOZ":[null,""],"NOR":[null,""],"SGP":[null,""],"SWE":[null,""],"UGA":[null,""],"AND":[1643,"2025-01"],"BHS":[1127,"2023-01"],"BRB":[919,"2026-01"],"OMN":[844,"2013-07"],"BHR":[796,"2025-01"],"TTO":[527,"2024-01"],"BLZ":[488,"2023-01"],"LCA":[419,"2024-10"],"BRN":[392,"2023-07"],"FSM":[303,"2011-08"],"MDV":[292,"2022-01"],"SUR":[284,"2026-07"],"GUY":[280,"2022-07"],"IRQ":[267,"?"],"NIC":[246,"2026-03"],"ARM":[208,"2023-01"],"GNQ":[203,"2011-01"],"DJI":[198,"2018-01"],"KIR":[157,"2016-11"],"TJK":[142,"2026-09"],"LBR":[141,"2015-06"],"STP":[139,"2025-09"],"GAB":[138,"2010-01"],"BWA":[136,"2024-02"],"TLS":[115,"2012-06"],"CMR":[104,"2023-03"],"GNB":[103,"2015-01"],"BEN":[91,"2023-01"],"MRT":[75,"2011-01"],"MLI":[70,"2016-01"],"BTN":[67,"?"],"GIN":[63,"2022-06"],"CAF":[50,"2022-01"],"YEM":[40,"2014-01"],"ERI":[24,"?"],"GEO":[8,"1999-06"],"BDI":[1,"1988-05"],"SDN":[1,"2020-03"],"AFG":[null,""],"KHM":[null,""],"COM":[null,""],"SWZ":[null,""],"GMB":[null,""],"LSO":[null,""],"LIE":[null,""],"NRU":[null,""],"PRK":[null,""],"PAN":[null,""],"RWA":[null,""],"SMR":[null,""],"SOM":[null,""],"SSD":[null,""],"TON":[null,""],"TUV":[null,""],"ZMB":[null,""]},"MINERALS":{"lithium":{"name":"Lítio","unit":"t Li","world":37000000.0,"r":{"USA":4400000.0,"ARG":4400000.0,"AUS":8400000.0,"BRA":540000.0,"CAN":1600000.0,"CHL":9200000.0,"CHN":4600000.0,"MLI":370000.0,"PRT":60000.0,"ZWE":500000.0}},"copper":{"name":"Cobre","unit":"t Cu","world":980000000.0,"r":{"USA":47000000.0,"AUS":100000000.0,"CAN":7000000.0,"CHL":180000000.0,"CHN":41000000.0,"COD":80000000.0,"IND":2200000.0,"IDN":21000000.0,"KAZ":20000000.0,"MEX":53000000.0,"PER":85000000.0,"POL":33000000.0,"RUS":80000000.0,"ZMB":21000000.0}},"rare_earths":{"name":"Terras raras","unit":"t REO","world":85000000.0,"r":{"USA":1900000.0,"AUS":6300000.0,"BRA":21000000.0,"CAN":830000.0,"CHN":44000000.0,"GRL":1500000.0,"MYS":710000.0,"RUS":3800000.0,"ZAF":860000.0,"TZA":890000.0,"VNM":3500000.0}},"nickel":{"name":"Níquel","unit":"t Ni","world":140000000.0,"r":{"USA":340000.0,"AUS":25000000.0,"BRA":16000000.0,"CAN":2200000.0,"CHN":4400000.0,"IDN":62000000.0,"NCL":7100000.0,"PHL":4800000.0,"RUS":8300000.0}},"cobalt":{"name":"Cobalto","unit":"t Co","world":12000000.0,"r":{"USA":70000.0,"AUS":1700000.0,"CAN":220000.0,"CHN":160000.0,"COD":6000000.0,"CUB":500000.0,"IDN":760000.0,"MDG":100000.0,"PNG":84000.0,"PHL":260000.0,"RUS":800000.0,"TUR":91000.0}}}};
+const HS2 = {'01':'Animais vivos','02':'Carne','03':'Peixe e marisco','04':'Lacticínios e ovos','07':'Legumes','08':'Fruta','09':'Café, chá, especiarias','10':'Cereais','12':'Sementes oleaginosas','15':'Gorduras e óleos','16':'Preparações de carne/peixe','17':'Açúcar','18':'Cacau','19':'Cereais preparados','20':'Conservas vegetais','21':'Preparações alimentares','22':'Bebidas','23':'Rações','24':'Tabaco','25':'Sal, pedra, cimento','26':'Minérios','27':'Combustíveis e petróleo','28':'Químicos inorgânicos','29':'Químicos orgânicos','30':'Farmacêuticos','31':'Fertilizantes','33':'Óleos essenciais, cosmética','38':'Produtos químicos diversos','39':'Plásticos','40':'Borracha','44':'Madeira','47':'Pasta de papel','48':'Papel e cartão','52':'Algodão','61':'Vestuário de malha','62':'Vestuário','64':'Calçado','68':'Obras de pedra','69':'Cerâmica','70':'Vidro','71':'Ouro, pedras e metais preciosos','72':'Ferro e aço','73':'Obras de ferro/aço','74':'Cobre','75':'Níquel','76':'Alumínio','78':'Chumbo','79':'Zinco','80':'Estanho','81':'Outros metais (cobalto, lítio…)','84':'Máquinas e reatores','85':'Equipamento elétrico','86':'Ferrovia','87':'Veículos','88':'Aeronaves','89':'Navios','90':'Instrumentos óticos/médicos','93':'Armas e munições','94':'Mobiliário','95':'Brinquedos','99':'Outros'};
+const CT_FIX = {840:842,250:251,356:699,756:757,578:579};
+const CT_UNFIX = Object.fromEntries(Object.entries(CT_FIX).map(([a,b])=>[b,+a]));
+const PLANET_COL = {Mercúrio:'#b8b8b8',Vénus:'#ffe9a8',Marte:'#ff6a3d',Júpiter:'#ffc78a',Saturno:'#e8d28a',Úrano:'#8fe8ff',Neptuno:'#5c8cff'};
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const nf = new Intl.NumberFormat('pt-PT');
+const nf1 = new Intl.NumberFormat('pt-PT',{maximumFractionDigits:1});
+const nf2 = new Intl.NumberFormat('pt-PT',{maximumFractionDigits:2});
+const hex = c => '#'+c.map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
+const D2R=Math.PI/180, R2D=180/Math.PI;
+const n360 = x => ((x%360)+360)%360;
+const w180 = x => { x=n360(x); return x>180?x-360:x; };
+const hhmm = t => t==null||isNaN(t) ? '—' : new Date(t).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
+const dmy = t => new Date(t).toLocaleDateString('pt-PT',{day:'2-digit',month:'short'});
+const ago = t => { const m=(Date.now()-t)/60000; return m<60?Math.round(m)+' min':m<1440?Math.round(m/60)+' h':Math.round(m/1440)+' d'; };
+function log(msg){ const d=document.createElement('div'); d.textContent=new Date().toISOString().slice(11,19)+'  '+msg; const L=$('#log'); L.prepend(d); while(L.children.length>60) L.lastChild.remove(); }
+async function getJSON(url, timeout=12000){
+  try{
+    const ac=new AbortController(), tm=setTimeout(()=>ac.abort(),timeout);
+    const r=await fetch(url,{signal:ac.signal}).finally(()=>clearTimeout(tm));
+    if(!r.ok) throw new Error(r.status+' '+url.split('?')[0]); return await r.json();
+  }catch(e){
+    // sem CORS ou lento: pede ao TouchDesigner (se ligado) para ir buscar
+    if(typeof ws!=='undefined' && ws && ws.readyState===1 && !/cdn\.|cdnjs/.test(url)) return JSON.parse(await viaTD(url));
+    throw e;
+  }
+}
+const tdReq={}; let tdReqId=0;
+function viaTD(url, timeout=25000){ return new Promise((res,rej)=>{ const id=++tdReqId; tdReq[id]={res,rej};
+  tdSend({type:'need',kind:'url',id,url}); setTimeout(()=>{ if(tdReq[id]){ delete tdReq[id]; rej(new Error('TD sem resposta')); } },timeout); }); }
+function safeLS(k,v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v);}catch(e){return null} }
+function ll2v(lat,lon,r=1){ const p=(90-lat)*D2R, t=(lon+180)*D2R;
+  return new THREE.Vector3(-r*Math.sin(p)*Math.cos(t), r*Math.cos(p), r*Math.sin(p)*Math.sin(t)); }
+const setT = (id,v) => { const e=$(id); if(e) e.textContent=v; };
+const setH = (id,v) => { const e=$(id); if(e) e.innerHTML=v; };
+
+/* estado partilhado — é isto que vai para o TouchDesigner */
+const STATE = {
+  humanity:{}, markets:{}, weather:[], conflicts:CONFLICTS, news:[],
+  nature:{eonet_counts:{}, gdacs_counts:{}}, quakesDay:[], quakesWeek:[], quakesMonth:[], eonet:[], gdacs:[],
+  cosmos:{sun:{}, moon:{}, solar:{}, parade:{}, iss:{}}, planets:[], cosEvents:[],
+  economy:{}, partners:[], products:[], minerals:[]
+};
+
+/* ============================================================
+   ASTRONOMIA (sem API)
+   ============================================================ */
+const jd = t => t/86400000 + 2440587.5;
+function gmst(t){ return n360(280.46061837 + 360.98564736629*(jd(t)-2451545.0)); }
+function sunPos(t){
+  const d=jd(t)-2451545.0, g=n360(357.529+0.98560028*d), q=n360(280.459+0.98564736*d);
+  const L=n360(q+1.915*Math.sin(g*D2R)+0.020*Math.sin(2*g*D2R)), eps=23.439-0.00000036*d;
+  const ra=n360(Math.atan2(Math.cos(eps*D2R)*Math.sin(L*D2R),Math.cos(L*D2R))*R2D);
+  const dec=Math.asin(Math.sin(eps*D2R)*Math.sin(L*D2R))*R2D;
+  return {L, ra, dec, eps, eot:4*w180(q-ra)};
+}
+function ecl2eq(lon,lat,eps){
+  const l=lon*D2R,b=lat*D2R,e=eps*D2R;
+  const ra=n360(Math.atan2(Math.sin(l)*Math.cos(e)-Math.tan(b)*Math.sin(e),Math.cos(l))*R2D);
+  const dec=Math.asin(Math.sin(b)*Math.cos(e)+Math.cos(b)*Math.sin(e)*Math.sin(l))*R2D;
+  return {ra,dec};
+}
+function moonPos(t){
+  const d=jd(t)-2451545.0;
+  const L=218.316+13.176396*d, M=(134.963+13.064993*d)*D2R, F=(93.272+13.229350*d)*D2R;
+  const D=(297.850+12.190749*d)*D2R, Ms=(357.529+0.98560028*d)*D2R;
+  const lon=n360(L + 6.289*Math.sin(M) + 1.274*Math.sin(2*D-M) + 0.658*Math.sin(2*D) + 0.214*Math.sin(2*M) - 0.186*Math.sin(Ms) - 0.114*Math.sin(2*F));
+  const lat=5.128*Math.sin(F) + 0.281*Math.sin(M+F) + 0.278*Math.sin(M-F);
+  const dist=385001 - 20905*Math.cos(M) - 3699*Math.cos(2*D-M) - 2956*Math.cos(2*D);
+  return {lon,lat,dist};
+}
+function moonInfo(t){
+  const m=moonPos(t), s=sunPos(t), el=n360(m.lon-s.L);
+  const illum=(1-Math.cos(el*D2R))/2, age=el/360*29.530589;
+  const names=[[6,'Lua Nova'],[84,'Crescente'],[96,'Quarto Crescente'],[174,'Crescente Gibosa'],[186,'Lua Cheia'],[264,'Minguante Gibosa'],[276,'Quarto Minguante'],[354,'Minguante'],[361,'Lua Nova']];
+  const name=names.find(n=>el<n[0])[1];
+  const eq=ecl2eq(m.lon,m.lat,s.eps);
+  return {...m, elong:el, illum, age, name, ra:eq.ra, dec:eq.dec, subLat:eq.dec, subLon:w180(eq.ra-gmst(t))};
+}
+// procura o instante em que a elongação Lua–Sol atinge um alvo (0 = nova, 180 = cheia)
+function nextPhase(t0,target){
+  const f=t=>w180(moonInfo(t).elong-target);
+  let a=t0, step=6*3600e3, fa=f(a);
+  for(let i=0;i<140;i++){ const b=a+step, fb=f(b); if(fa<0&&fb>=0&&fb-fa<90){ let lo=a,hi=b; for(let k=0;k<30;k++){ const mid=(lo+hi)/2; f(mid)<0?lo=mid:hi=mid; } return (lo+hi)/2; } a=b; fa=fb; }
+  return null;
+}
+function sunTimes(lat,lon,dayT){
+  const d0=new Date(dayT); d0.setUTCHours(12,0,0,0);
+  const s=sunPos(d0.getTime()), phi=lat*D2R, dec=s.dec*D2R;
+  const noonMin=720-4*lon-s.eot, base=Date.UTC(d0.getUTCFullYear(),d0.getUTCMonth(),d0.getUTCDate());
+  const ha=alt=>{ const c=(Math.sin(alt*D2R)-Math.sin(phi)*Math.sin(dec))/(Math.cos(phi)*Math.cos(dec)); return c>1?null:c<-1?NaN:Math.acos(c)*R2D; };
+  const H=ha(-0.833), Hg=ha(6);
+  const at=m=>base+m*60000;
+  return { noon:at(noonMin), rise:H?at(noonMin-4*H):null, set:H?at(noonMin+4*H):null,
+    goldStart:Hg?at(noonMin+4*Hg):null, len:H==null?0:isNaN(H)?24:8*H/60, polar:H==null?'noite polar':isNaN(H)?'sol da meia-noite':'' };
+}
+function sunAltAz(lat,lon,t){
+  const s=sunPos(t), H=(gmst(t)+lon-s.ra)*D2R, phi=lat*D2R, dec=s.dec*D2R;
+  const alt=Math.asin(Math.sin(phi)*Math.sin(dec)+Math.cos(phi)*Math.cos(dec)*Math.cos(H));
+  const az=Math.atan2(-Math.sin(H), Math.tan(dec)*Math.cos(phi)-Math.sin(phi)*Math.cos(H));
+  return {alt:alt*R2D, az:n360(az*R2D)};
+}
+function nextSeason(t){
+  const names={0:'equinócio de março',90:'solstício de junho',180:'equinócio de setembro',270:'solstício de dezembro'};
+  const L=sunPos(t).L, target=(Math.floor(L/90)+1)*90%360;
+  let a=t; const f=x=>w180(sunPos(x).L-target);
+  for(let i=0;i<120 && f(a)<0;i++) a+=86400e3;
+  let lo=a-86400e3, hi=a; for(let k=0;k<30;k++){ const m=(lo+hi)/2; f(m)<0?lo=m:hi=m; }
+  return {t:hi, name:names[target]};
+}
+/* planetas — elementos keplerianos aproximados JPL (1800–2050) */
+const ELEM = {
+  Mercúrio:[0.38709927,0.20563593,7.00497902,252.25032350,77.45779628,48.33076593, 0.00000037,0.00001906,-0.00594749,149472.67411175,0.16047689,-0.12534081],
+  Vénus:   [0.72333566,0.00677672,3.39467605,181.97909950,131.60246718,76.67984255, 0.00000390,-0.00004107,-0.00078890,58517.81538729,0.00268329,-0.27769418],
+  Terra:   [1.00000261,0.01671123,-0.00001531,100.46457166,102.93768193,0.0, 0.00000562,-0.00004392,-0.01294668,35999.37244981,0.32327364,0.0],
+  Marte:   [1.52371034,0.09339410,1.84969142,-4.55343205,-23.94362959,49.55953891, 0.00001847,0.00007882,-0.00813131,19140.30268499,0.44441088,-0.29257343],
+  Júpiter: [5.20288700,0.04838624,1.30439695,34.39644051,14.72847983,100.47390909, -0.00011607,-0.00013253,-0.00183714,3034.74612775,0.21252668,0.20469106],
+  Saturno: [9.53667594,0.05386179,2.48599187,49.95424423,92.59887831,113.66242448, -0.00125060,-0.00050991,0.00193609,1222.49362201,-0.41897216,-0.28867794],
+  Úrano:   [19.18916464,0.04725744,0.77263783,313.23810451,170.95427630,74.01692503, -0.00196176,-0.00004397,-0.00242939,428.48202785,0.40805281,0.04240589],
+  Neptuno: [30.06992276,0.00859048,1.77004347,-55.12002969,44.96476227,131.78422574, 0.00026291,0.00005105,0.00035372,218.45945325,-0.32241464,-0.00508664],
+};
+function helio(name,t){
+  const T=(jd(t)-2451545.0)/36525, el=ELEM[name];
+  const a=el[0]+el[6]*T, e=el[1]+el[7]*T, I=(el[2]+el[8]*T)*D2R, L=el[3]+el[9]*T, wb=el[4]+el[10]*T, O=el[5]+el[11]*T;
+  const w=(wb-O)*D2R, Om=O*D2R; let M=w180(L-wb)*D2R, E=M+e*Math.sin(M);
+  for(let i=0;i<8;i++) E-= (E-e*Math.sin(E)-M)/(1-e*Math.cos(E));
+  const xp=a*(Math.cos(E)-e), yp=a*Math.sqrt(1-e*e)*Math.sin(E);
+  const cw=Math.cos(w),sw=Math.sin(w),cO=Math.cos(Om),sO=Math.sin(Om),cI=Math.cos(I),sI=Math.sin(I);
+  return [(cw*cO-sw*sO*cI)*xp+(-sw*cO-cw*sO*cI)*yp, (cw*sO+sw*cO*cI)*xp+(-sw*sO+cw*cO*cI)*yp, sw*sI*xp+cw*sI*yp];
+}
+const unit = v => { const l=Math.hypot(...v); return v.map(x=>x/l); };
+const sep = (a,b) => Math.acos(Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2])))*R2D;
+const dirFromLonLat = (lon,lat) => [Math.cos(lat*D2R)*Math.cos(lon*D2R), Math.cos(lat*D2R)*Math.sin(lon*D2R), Math.sin(lat*D2R)];
+function bodies(t){
+  const E=helio('Terra',t), sunV=E.map(x=>-x), out={Sol:{dir:unit(sunV),lon:n360(Math.atan2(sunV[1],sunV[0])*R2D),lat:0,dist:Math.hypot(...E)}};
+  const m=moonPos(t); out.Lua={dir:dirFromLonLat(m.lon,m.lat),lon:m.lon,lat:m.lat,dist:m.dist/149597870.7};
+  for(const p of Object.keys(ELEM)){ if(p==='Terra') continue;
+    const h=helio(p,t), g=[h[0]-E[0],h[1]-E[1],h[2]-E[2]];
+    out[p]={dir:unit(g),lon:n360(Math.atan2(g[1],g[0])*R2D),lat:Math.atan2(g[2],Math.hypot(g[0],g[1]))*R2D,dist:Math.hypot(...g)}; }
+  return out;
+}
+const NAKED=['Mercúrio','Vénus','Marte','Júpiter','Saturno'];
+function computePlanets(){
+  const t=Date.now(), B=bodies(t), B1=bodies(t+86400e3);
+  STATE.planets=Object.keys(ELEM).filter(p=>p!=='Terra').map(p=>{
+    const elong=sep(B[p].dir,B.Sol.dir), retro=w180(B1[p].lon-B[p].lon)<0;
+    return {name:p, lon:+B[p].lon.toFixed(2), lat:+B[p].lat.toFixed(2), dist_au:+B[p].dist.toFixed(3), elong:+elong.toFixed(1), retro,
+      visible:NAKED.includes(p)&&elong>18, sky:elong<18?'perto do Sol':(w180(B[p].lon-B.Sol.lon)>0?'céu da tarde/noite':'céu da madrugada')};
+  });
+  const vis=STATE.planets.filter(p=>p.visible).map(p=>p.lon).sort((a,b)=>a-b);
+  let arc=0; if(vis.length>1){ let gap=0; for(let i=0;i<vis.length;i++){ const g=n360(vis[(i+1)%vis.length]-vis[i]) || 360; gap=Math.max(gap,g);} arc=360-gap; }
+  STATE.cosmos.parade={visible:vis.length, arc_deg:+arc.toFixed(1)};
+  setT('#parade', vis.length? `${vis.length} planetas num arco de ${Math.round(arc)}°` : 'nenhum');
+  const box=$('#planets'); box.innerHTML='';
+  STATE.planets.forEach(p=>{ const d=document.createElement('div');
+    d.innerHTML=`<span class="dot" style="background:${PLANET_COL[p.name]}"></span><span style="flex:1"></span><span class="tag">${p.elong}° do Sol</span>${p.retro?'<span class="tag orange">retrógrado</span>':''}`;
+    d.children[1].textContent=`${p.name} · ${p.sky}`; box.append(d); });
+  drawSky(B);
+}
+// varrimento dos próximos 60 dias: conjunções, oposições, retrogradações
+function computeCosmicEvents(){
+  const t0=Date.now(), ev=[], names=['Lua','Mercúrio','Vénus','Marte','Júpiter','Saturno','Úrano','Neptuno'];
+  const step=6*3600e3, N=60*4; let prev=null;
+  for(let i=0;i<=N;i++){
+    const t=t0+i*step, B=bodies(t), cur={};
+    for(let a=0;a<names.length;a++) for(let b=a+1;b<names.length;b++){
+      const k=names[a]+'|'+names[b], s=sep(B[names[a]].dir,B[names[b]].dir); cur[k]=s;
+      const lim=names[a]==='Lua'?5:3;
+      if(prev && i>1 && prev.s[k]<lim && prev.s[k]<=cur[k] && prev.s[k]<prev.pp[k] && sep(B[names[b]].dir,B.Sol.dir)>15)
+        ev.push({t:t-step, type:'conjunção', name:`${names[a]} – ${names[b]}`, sep:+prev.s[k].toFixed(1)});
+    }
+    for(const p of names.slice(1)){ const k='sun|'+p, el=sep(B[p].dir,B.Sol.dir); cur[k]=el;
+      if(prev && i>1 && prev.s[k]>prev.pp[k] && prev.s[k]>=el && prev.s[k]>170) ev.push({t:t-step,type:'oposição',name:`${p} em oposição (melhor visibilidade)`,sep:+prev.s[k].toFixed(1)});
+    }
+    prev={pp:prev?prev.s:cur, s:cur};
+  }
+  for(const p of ['Mercúrio','Vénus','Marte','Júpiter','Saturno']){
+    let r0=null; for(let d=0; d<=60; d++){ const t=t0+d*86400e3, r=w180(bodies(t+86400e3)[p].lon-bodies(t)[p].lon)<0;
+      if(r0!==null && r!==r0) ev.push({t, type:'retrogradação', name:`${p} ${r?'começa':'termina'} movimento retrógrado`}); r0=r; }
+  }
+  const fm=nextPhase(t0,180), nm=nextPhase(t0,0);
+  if(fm) ev.push({t:fm,type:'lua',name:'Lua Cheia'}); if(nm) ev.push({t:nm,type:'lua',name:'Lua Nova'});
+  const ss=nextSeason(t0); ev.push({t:ss.t,type:'sol',name:ss.name[0].toUpperCase()+ss.name.slice(1)});
+  const y=new Date().getUTCFullYear();
+  METEORS.forEach(m=>[y,y+1].forEach(yy=>{ const t=Date.UTC(yy,m.m-1,m.d); if(t>t0-86400e3 && t<t0+60*86400e3) ev.push({t,type:'meteoros',name:`Pico das ${m.name}`}); }));
+  ECLIPSES.forEach(e=>{ const t=Date.parse(e.date); if(t>t0-86400e3) ev.push({t,type:'eclipse',name:e.name}); });
+  ev.sort((a,b)=>a.t-b.t);
+  STATE.cosEvents=ev.filter(e=>e.type==='eclipse'||e.t<t0+60*86400e3).slice(0,40);
+  const box=$('#cosEvents'); box.innerHTML='';
+  const ec={conjunção:'#ffd84d',oposição:'#ff6a3d',retrogradação:'#ffb347',lua:'#d8e4ff',sol:'#ffd84d',meteoros:'#8fe8ff',eclipse:'#ff4dff'};
+  STATE.cosEvents.forEach(e=>{ const d=document.createElement('div');
+    d.innerHTML=`<span class="dot" style="background:${ec[e.type]}"></span><span style="flex:1"></span><span class="tag">${dmy(e.t)}</span>`;
+    d.children[1].textContent=e.name+(e.sep!=null&&e.type==='conjunção'?` (${e.sep}°)`:''); box.append(d); });
+  log(`eventos cósmicos: ${STATE.cosEvents.length}`);
+}
+
+/* ============================================================
+   GLOBO (three.js point cloud + dia/noite)
+   ============================================================ */
+const canvas = $('#globe');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, .01, 100);
+camera.position.set(0,0,3.4);
+const world = new THREE.Group(); scene.add(world); world.rotation.x=.35;
+
+const ptVert = `
+  attribute float aSize; attribute float aRand; attribute vec3 color;
+  uniform float uTime; uniform float uPulse; uniform float uDN; uniform float uPR; uniform vec3 uSun;
+  varying vec3 vC; varying float vA;
+  void main(){
+    vec4 mv = modelViewMatrix*vec4(position,1.);
+    gl_Position = projectionMatrix*mv;
+    float pulse = 1.0 + uPulse*0.25*sin(uTime*3.0 + aRand*6.2831);
+    gl_PointSize = aSize*pulse*uPR*(3.0/-mv.z);
+    vec3 n = normalize((modelViewMatrix*vec4(position,0.)).xyz);
+    vA = 0.35 + 0.65*smoothstep(0.0,0.35,n.z);
+    float day = smoothstep(-0.06, 0.06, dot(normalize(position), uSun));
+    vC = mix(color, mix(color*0.32, color, day), uDN);
+  }`;
+const ptFrag = `
+  uniform float uRing;
+  varying vec3 vC; varying float vA;
+  void main(){
+    float d = length(gl_PointCoord-0.5);
+    float a = 1.0 - smoothstep(0.40,0.5,d);
+    if(uRing > 0.5){ a *= smoothstep(0.26,0.34,d); }
+    if(a < 0.02) discard;
+    gl_FragColor = vec4(vC, a*vA);
+  }`;
+const uniforms = { uTime:{value:0}, uSun:{value:new THREE.Vector3(1,0,0)}, uPR:{value:Math.min(devicePixelRatio,2)} };
+function pointsMat(pulse=0,dn=0,ring=0){
+  return new THREE.ShaderMaterial({ uniforms:{uTime:uniforms.uTime, uSun:uniforms.uSun, uPR:uniforms.uPR, uPulse:{value:pulse}, uDN:{value:dn}, uRing:{value:ring}},
+    vertexShader:ptVert, fragmentShader:ptFrag, transparent:true, depthWrite:false, depthTest:true });
+}
+function buildPoints(items,pulse=0,dn=0,ring=0){
+  const n=items.length, pos=new Float32Array(n*3), col=new Float32Array(n*3), sz=new Float32Array(n), rnd=new Float32Array(n);
+  items.forEach((it,i)=>{ const v=ll2v(it.lat,it.lon,it.r||1.012); pos.set([v.x,v.y,v.z],i*3); col.set(it.c,i*3); sz[i]=it.s; rnd[i]=Math.random(); });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  g.setAttribute('aSize',new THREE.BufferAttribute(sz,1));
+  g.setAttribute('aRand',new THREE.BufferAttribute(rnd,1));
+  return new THREE.Points(g, pointsMat(pulse,dn,ring));
+}
+// esfera opaca que esconde os pontos do lado de trás
+const occluder=new THREE.Mesh(new THREE.SphereGeometry(.985,64,64), new THREE.MeshBasicMaterial({color:0x03060b}));
+occluder.renderOrder=-1; world.add(occluder);
+// contorno fino do globo (silhueta exata para a câmara em perspetiva)
+const limbPts=[]; for(let i=0;i<=256;i++){ const a=i/256*Math.PI*2; limbPts.push(new THREE.Vector3(Math.cos(a),Math.sin(a),0)); }
+const limb=new THREE.Line(new THREE.BufferGeometry().setFromPoints(limbPts), new THREE.LineBasicMaterial({color:0x3df5ff,transparent:true,opacity:.35}));
+scene.add(limb);
+function updateLimb(){ const D=camera.position.z; limb.position.z=1/D; limb.scale.setScalar(Math.sqrt(1-1/(D*D))*1.003); }
+
+const COUNTRIES=[], CBY={}, CNUM={}; let idData=null; const ID_W=1440, ID_H=720;
+function v2ll(v){ const r=v.length(); return {lat:Math.asin(v.y/r)*R2D, lon:w180(Math.atan2(v.z,-v.x)*R2D-180)}; }
+function idAt(lat,lon){ if(!idData) return 0; const px=Math.min(ID_W-1,Math.max(0,Math.floor((lon+180)/360*ID_W))), py=Math.min(ID_H-1,Math.max(0,Math.floor((90-lat)/180*ID_H))), o=(py*ID_W+px)*4;
+  return idData[o+2]===255 ? (idData[o]|(idData[o+1]<<8)) : 0; }
+async function buildEarth(){
+  const W=ID_W,H=ID_H, cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const ctx=cv.getContext('2d',{willReadFrequently:true});
+  try{
+    const topo = await getJSON('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+    const fc = topojson.feature(topo, topo.objects.countries);
+    const drawRing = ring => { ring.forEach(([lo,la],i)=>{ const x=(lo+180)/360*W, y=(90-la)/180*H; i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.closePath(); };
+    fc.features.forEach((f,i)=>{ const k=i+1, g=f.geometry; if(!g) return;
+      ctx.fillStyle=`rgb(${k&255},${k>>8},255)`;
+      (g.type==='Polygon'?[g.coordinates]:g.coordinates).forEach(p=>{ ctx.beginPath(); p.forEach(drawRing); ctx.fill('evenodd'); });
+      const num=parseInt(f.id,10), iso3=ECO.NUM2ISO[num]||null;
+      const c={idx:k,num,iso3,name:f.properties.name,feature:f,v:new THREE.Vector3(),lat:0,lon:0};
+      COUNTRIES[k-1]=c; if(iso3) CBY[iso3]=c; if(!isNaN(num)) CNUM[num]=c; });
+    idData=ctx.getImageData(0,0,W,H).data;
+    const mesh=topojson.mesh(topo, topo.objects.countries), segs=[];
+    mesh.coordinates.forEach(line=>{ for(let i=0;i<line.length-1;i++) segs.push(ll2v(line[i][1],line[i][0],1.001), ll2v(line[i+1][1],line[i+1][0],1.001)); });
+    world.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineBasicMaterial({color:0x3df5ff,transparent:true,opacity:.14})));
+  }catch(e){ log('mapa de países falhou: '+e.message); }
+  const N=60000, items=[], golden=Math.PI*(3-Math.sqrt(5));
+  for(let i=0;i<N;i++){
+    const y=1-(i/(N-1))*2, lat=Math.asin(y)*R2D;
+    let lon=((i*golden)*R2D)%360; lon=lon>180?lon-360:lon;
+    const px=Math.min(W-1,Math.floor((lon+180)/360*W)), py=Math.min(H-1,Math.floor((90-lat)/180*H)), o=(py*W+px)*4;
+    const isLand = idData ? idData[o+2]>128 : Math.random()<.3;
+    if(isLand){ items.push({lat,lon,r:1.0,s:1.5,c:[.55,.85,.95]});
+      const id=idData&&idData[o+2]===255?(idData[o]|(idData[o+1]<<8)):0, c=COUNTRIES[id-1]; if(c) c.v.add(ll2v(lat,lon,1)); }
+    else if(i%9===0) items.push({lat,lon,r:1.0,s:1.0,c:[.16,.3,.4]});
+  }
+  COUNTRIES.forEach(c=>{ if(!c) return;
+    if(c.v.lengthSq()<1e-6){ const g=c.feature.geometry, ring=(g.type==='Polygon'?g.coordinates[0]:g.coordinates[0][0]); ring.forEach(([lo,la])=>c.v.add(ll2v(la,lo,1))); }
+    const ll=v2ll(c.v); c.lat=ll.lat; c.lon=ll.lon; });
+  world.add(buildPoints(items,0,1));
+  const gm=new THREE.LineBasicMaterial({color:0x3df5ff,transparent:true,opacity:.06});
+  for(let la=-60;la<=60;la+=30){ const pts=[]; for(let lo=-180;lo<=180;lo+=4) pts.push(ll2v(la,lo,1.002)); world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),gm)); }
+  for(let lo=-180;lo<180;lo+=30){ const pts=[]; for(let la=-90;la<=90;la+=4) pts.push(ll2v(la,lo,1.002)); world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),gm)); }
+  log(`globo pronto: ${items.length} pontos, ${COUNTRIES.filter(Boolean).length} países`);
+  ecoInit();
+}
+
+/* camadas por tema */
+let THEME='all';
+const LAYER_THEME={quakes:'nat',quakesHour:'nat',eonet:'nat',gdacs:'nat',cities:'nat',conflicts:'hum',iss:'cos',issLine:'cos',sun:'cos',moon:'cos',arc_nat:'nat',arc_hum:'hum',arc_cos:'cos',
+  minerals:'eco',partners:'eco',countrySel:'eco',arc_eco:'eco',wxTemp:'nat',wxWind:'nat',cyclones:'nat',aurora:'cos'};
+const WXON={temp:true,wind:true,cyc:true};
+const WXKEY={wxTemp:'temp',wxWind:'wind',cyclones:'cyc'};
+const visFor = name => (THEME==='all' || LAYER_THEME[name]===THEME) && (!WXKEY[name] || WXON[WXKEY[name]]);
+const layers={};
+function setLayer(name, items, pulse=1, ring=1){
+  if(layers[name]){ world.remove(layers[name]); layers[name].geometry.dispose(); delete layers[name]; }
+  if(!items.length) return;
+  layers[name]=buildPoints(items,pulse,0,ring); layers[name].visible=visFor(name); world.add(layers[name]);
+}
+const arcGroups={}; let arcs=[];
+function buildArcs(key, evts, lift=.45){
+  const pairs=[]; for(let i=0;i<evts.length-1;i++) pairs.push([evts[i],evts[i+1]]); buildArcPairs(key,pairs,lift);
+}
+function buildArcPairs(key, pairs, lift=.45){
+  const name='arc_'+key;
+  if(arcGroups[name]){ arcGroups[name].children.forEach(o=>o.geometry.dispose()); world.remove(arcGroups[name]); }
+  arcs=arcs.filter(a=>a.key!==name);
+  const grp=new THREE.Group(); grp.visible=visFor(name); arcGroups[name]=grp; world.add(grp);
+  for(const [a,b] of pairs){
+    const s=ll2v(a.lat,a.lon,1.01), e=ll2v(b.lat,b.lon,1.01), d=s.distanceTo(e);
+    if(d<.02) continue;
+    const m=s.clone().add(e).normalize().multiplyScalar(1.01+d*lift);
+    const pts=new THREE.QuadraticBezierCurve3(s,m,e).getPoints(90), col=new THREE.Color(...a.c);
+    const geo=new THREE.BufferGeometry().setFromPoints(pts);
+    grp.add(new THREE.Line(geo.clone(), new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.14,depthWrite:false})));
+    const line=new THREE.Line(geo, new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.85,depthWrite:false}));
+    grp.add(line); arcs.push({key:name,line,n:pts.length,phase:Math.random(),speed:.18+Math.random()*.18});
+  }
+}
+const issTrail=[]; let issLine=null;
+/* etiquetas pequenas no globo */
+const LABELS={}, lblPool=[], labelBox=$('#labels');
+function setLabels(key, arr){ LABELS[key]=arr; }
+const _lv=new THREE.Vector3(), _ln=new THREE.Vector3(), _lc=new THREE.Vector3();
+function updateLabels(){
+  const all=[]; for(const k in LABELS){ if(visFor(k)) for(const l of LABELS[k]) all.push(l); }
+  all.sort((a,b)=>(b.pri||0)-(a.pri||0));
+  camera.getWorldPosition(_lc); const placed=[]; let used=0;
+  for(const l of all){
+    if(used>=70) break;
+    _lv.copy(ll2v(l.lat,l.lon,l.r||1.012)).applyMatrix4(world.matrixWorld);
+    _ln.copy(_lv).normalize();
+    if(_ln.dot(_lc.clone().sub(_lv).normalize())<0.28) continue;
+    _lv.project(camera);
+    const x=(_lv.x+1)/2*innerWidth, y=(1-_lv.y)/2*innerHeight, w=Math.min(160,l.text.length*5.6);
+    if(placed.some(p=>x<p[0]+p[2] && x+w>p[0] && Math.abs(p[1]-y)<12)) continue;
+    placed.push([x,y,w]);
+    let el=lblPool[used]; if(!el){ el=document.createElement('div'); labelBox.append(el); lblPool.push(el); }
+    if(el._t!==l.text){ el.textContent=l.text; el._t=l.text; }
+    const cls='lbl '+(l.cls||''); if(el.className!==cls) el.className=cls;
+    el.style.transform=`translate(${(x+7)|0}px,${(y-7)|0}px)`; el.style.display='block'; used++;
+  }
+  for(let i=used;i<lblPool.length;i++) lblPool[i].style.display='none';
+}
+const shortPlace = p => { const t=(p||'').split(' of ').pop(); return t.length>26?t.slice(0,25)+'…':t; };
+const shortT = (t,n=24) => t.length>n?t.slice(0,n-1)+'…':t;
+function applyTheme(t){
+  THEME=t;
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('section[data-theme]').forEach(s=>s.classList.toggle('hide', !(t==='all'||s.dataset.theme===t||s.dataset.theme==='sys')));
+  Object.entries(layers).forEach(([k,l])=>l.visible=visFor(k));
+  Object.entries(arcGroups).forEach(([k,g])=>g.visible=visFor(k));
+  if(issLine) issLine.visible=visFor('issLine');
+  safeLS('theme',t); tdSend({type:'theme',theme:t});
+}
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>applyTheme(b.dataset.t));
+
+/* interação */
+let drag=false, px=0, py=0, idle=0, target=null, zoom=3.4;
+let downX=0, downY=0; const raycaster=new THREE.Raycaster();
+canvas.addEventListener('pointerdown',e=>{drag=true;px=downX=e.clientX;py=downY=e.clientY;target=null;});
+canvas.addEventListener('pointerup',e=>{ if(Math.hypot(e.clientX-downX,e.clientY-downY)>5) return;
+  raycaster.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1), camera);
+  const hit=raycaster.intersectObject(occluder)[0]; if(!hit) return;
+  const ll=v2ll(world.worldToLocal(hit.point.clone())), c=COUNTRIES[idAt(ll.lat,ll.lon)-1];
+  if(c&&c.iso3){ selectCountry(c.iso3); if(THEME!=='eco'&&THEME!=='all') applyTheme('eco'); } });
+addEventListener('pointerup',()=>drag=false);
+addEventListener('pointermove',e=>{ if(!drag) return; world.rotation.y+=(e.clientX-px)*.005; world.rotation.x=Math.max(-1.3,Math.min(1.3,world.rotation.x+(e.clientY-py)*.005)); px=e.clientX; py=e.clientY; idle=0; });
+canvas.addEventListener('wheel',e=>{ zoom=Math.max(1.6,Math.min(6,zoom+e.deltaY*.002)); e.preventDefault(); },{passive:false});
+function focusOn(lat,lon){
+  const theta=(lon+180)*D2R; let ry=Math.PI/2-theta; const cur=world.rotation.y;
+  ry = cur + (((ry-cur)%(2*Math.PI))+3*Math.PI)%(2*Math.PI)-Math.PI;
+  target={x:lat*D2R, y:ry}; idle=0;
+}
+function resize(){ renderer.setSize(innerWidth,innerHeight,false); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize',resize); resize();
+
+const clock=new THREE.Clock();
+function frame(){
+  const dt=clock.getDelta(), t=clock.elapsedTime; uniforms.uTime.value=t; idle+=dt;
+  if(target){ world.rotation.x+=(target.x-world.rotation.x)*.06; world.rotation.y+=(target.y-world.rotation.y)*.06; if(Math.abs(target.y-world.rotation.y)<.001) target=null; }
+  else if(!drag && idle>4) world.rotation.y+=dt*.05;
+  camera.position.z+=(zoom-camera.position.z)*.08; updateLimb();
+  arcs.forEach(a=>{ const head=((t*a.speed+a.phase)%1.3)*a.n, st=Math.max(0,Math.floor(head-14)); a.line.geometry.setDrawRange(st,Math.max(0,Math.min(Math.floor(head),a.n)-st)); });
+  stepWind(); renderer.render(scene,camera); updateLabels(); requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   HUMANIDADE — contadores
+   ============================================================ */
+function dcTWhYear(now){ const r=Math.pow(DC_TWH_2030/DC_TWH_2024,1/6); return DC_TWH_2024*Math.pow(r,(now-DC_T0)/1000/YEAR_S); }
+let lastCount=0;
+function updateCounters(force){
+  const now=Date.now(); if(!force && now-lastCount<100) return; lastCount=now;
+  const d0=new Date(); d0.setUTCHours(0,0,0,0); const sT=(now-d0)/1000;
+  const pop=POP_REF+(BIRTHS_Y-DEATHS_Y)*((now-POP_REF_T)/1000)/YEAR_S, b=BIRTHS_Y/YEAR_S*sT, de=DEATHS_Y/YEAR_S*sT;
+  const ej=ENERGY_Y_J/YEAR_S*sT, co2=CO2_Y_T/YEAR_S*sT, dcY=dcTWhYear(now), dcGW=dcY*1e3/8766, dcToday=dcGW*sT/3600;
+  Object.assign(STATE.humanity,{population:Math.round(pop),births_today:Math.round(b),deaths_today:Math.round(de),growth_today:Math.round(b-de),
+    births_per_sec:+(BIRTHS_Y/YEAR_S).toFixed(3),deaths_per_sec:+(DEATHS_Y/YEAR_S).toFixed(3),
+    co2_t_today:Math.round(co2),co2_t_per_sec:Math.round(CO2_Y_T/YEAR_S),energy_pj_today:+(ej/1e15).toFixed(1),energy_avg_TW:+(ENERGY_Y_J/YEAR_S/1e12).toFixed(2),
+    dc_twh_year:+dcY.toFixed(1),dc_avg_GW:+dcGW.toFixed(1),dc_gwh_today:+dcToday.toFixed(1)});
+  setT('#pop',nf.format(Math.round(pop))); setT('#births',nf.format(Math.round(b))); setT('#deaths',nf.format(Math.round(de)));
+  setT('#growth','+'+nf.format(Math.round(b-de))); setT('#rates',`${nf1.format(BIRTHS_Y/YEAR_S)} / ${nf1.format(DEATHS_Y/YEAR_S)}`);
+  setT('#co2',nf.format(Math.round(co2))+' t'); setT('#co2s',nf.format(Math.round(CO2_Y_T/YEAR_S))+' t/s');
+  setT('#energy',nf.format(Math.round(ej/1e15))+' PJ'); setT('#power',nf1.format(ENERGY_Y_J/YEAR_S/1e12)+' TW');
+  setT('#dcY',nf.format(Math.round(dcY))+' TWh/ano'); setT('#dcP',nf.format(Math.round(dcGW))+' GW');
+  setT('#dcT',nf.format(Math.round(dcToday))+' GWh'); setT('#dcH',nf.format(Math.round(dcY*1e6/3.6/1e6))+' milhões');
+  setT('#clock',new Date().toISOString().replace('T','  ').slice(0,21)+' UTC');
+}
+
+/* ============================================================
+   COSMOS — sol, lua, desenhos
+   ============================================================ */
+let city=CITIES[0];
+function updateSunMoon(){
+  const t=Date.now(), s=sunPos(t), subLon=w180(s.ra-gmst(t)), subLat=s.dec;
+  uniforms.uSun.value.copy(ll2v(subLat,subLon,1).normalize());
+  const st=sunTimes(city.lat,city.lon,t), sy=sunTimes(city.lat,city.lon,t-86400e3), aa=sunAltAz(city.lat,city.lon,t), ss=nextSeason(t);
+  setT('#sRise',st.polar||hhmm(st.rise)); setT('#sNoon',hhmm(st.noon)); setT('#sSet',st.polar||hhmm(st.set));
+  const hm=h=>`${Math.floor(h)}h ${String(Math.round((h%1)*60)).padStart(2,'0')}m`;
+  setT('#sLen',hm(st.len)); const dm=(st.len-sy.len)*60; setT('#sDelta',`${dm>=0?'+':''}${nf1.format(dm)} min`);
+  setT('#sGold',st.goldStart?`${hhmm(st.goldStart)} → ${hhmm(st.set)}`:'—');
+  setT('#sAlt',`${nf1.format(aa.alt)}° / ${Math.round(aa.az)}°`); setT('#sSub',`${subLat.toFixed(2)}°, ${subLon.toFixed(2)}°`);
+  setT('#sSeason',`${ss.name} · ${dmy(ss.t)}`);
+  const m=moonInfo(t);
+  if(!STATE.cosmos.moon.nextFullT || STATE.cosmos.moon.nextFullT<t) STATE.cosmos.moon.nextFullT=nextPhase(t,180);
+  if(!STATE.cosmos.moon.nextNewT || STATE.cosmos.moon.nextNewT<t) STATE.cosmos.moon.nextNewT=nextPhase(t,0);
+  const fT=STATE.cosmos.moon.nextFullT, nT=STATE.cosmos.moon.nextNewT;
+  setT('#mName',m.name); setT('#mIll',Math.round(m.illum*100)+'%'); setT('#mAge',nf1.format(m.age)+' dias');
+  setT('#mFull',`${dmy(fT)} ${hhmm(fT)} · ${nf1.format((fT-t)/864e5)} d`); setT('#mNew',`${dmy(nT)} ${hhmm(nT)} · ${nf1.format((nT-t)/864e5)} d`);
+  setT('#mDist',nf.format(Math.round(m.dist))+' km'); setT('#mSub',`${m.subLat.toFixed(2)}°, ${m.subLon.toFixed(2)}°`);
+  Object.assign(STATE.cosmos.sun,{subsolar_lat:+subLat.toFixed(3),subsolar_lon:+subLon.toFixed(3),city:city.name,sunrise:hhmm(st.rise),sunset:hhmm(st.set),solar_noon:hhmm(st.noon),
+    day_len_h:+st.len.toFixed(3),day_len_delta_min:+dm.toFixed(2),elevation:+aa.alt.toFixed(2),azimuth:+aa.az.toFixed(2),is_day:aa.alt>-0.833?1:0,ecl_lon:+s.L.toFixed(2),next_season:ss.name,next_season_days:+((ss.t-t)/864e5).toFixed(2)});
+  Object.assign(STATE.cosmos.moon,{phase_name:m.name,illum:+m.illum.toFixed(4),age_d:+m.age.toFixed(2),elong:+m.elong.toFixed(2),phase01:+(m.elong/360).toFixed(4),dist_km:Math.round(m.dist),
+    sublunar_lat:+m.subLat.toFixed(3),sublunar_lon:+m.subLon.toFixed(3),next_full_d:+((fT-t)/864e5).toFixed(2),next_new_d:+((nT-t)/864e5).toFixed(2)});
+  setLabels('sun',[{lat:subLat,lon:subLon,r:1.02,text:'SOL (zénite)',cls:'l-cos',pri:9}]);
+  setLabels('moon',[{lat:m.subLat,lon:m.subLon,r:1.02,text:`LUA ${Math.round(m.illum*100)}%`,cls:'l-cos',pri:9}]);
+  setLayer('sun',[{lat:subLat,lon:subLon,r:1.02,s:16,c:COL.sun}],.4);
+  setLayer('moon',[{lat:m.subLat,lon:m.subLon,r:1.02,s:11,c:COL.moon}],0);
+  buildArcs('cos',[{lat:subLat,lon:subLon,c:COL.sun},{lat:m.subLat,lon:m.subLon,c:COL.moon}],.25);
+  drawMoon(m);
+}
+function drawMoon(m){
+  const cv=$('#moonCv'), c=cv.getContext('2d'), R=44, cx=48, cy=48; c.clearRect(0,0,96,96);
+  c.fillStyle='#0b1622'; c.beginPath(); c.arc(cx,cy,R,0,7); c.fill();
+  const k=Math.cos(m.elong*D2R), waxing=m.elong<180;
+  c.fillStyle='#d8e4ff'; c.beginPath();
+  c.arc(cx,cy,R,-Math.PI/2,Math.PI/2,!waxing);
+  c.ellipse(cx,cy,Math.abs(k)*R,R,0,Math.PI/2,-Math.PI/2, k>0 ? waxing : !waxing);
+  c.fill(); c.strokeStyle='rgba(61,245,255,.3)'; c.beginPath(); c.arc(cx,cy,R,0,7); c.stroke();
+}
+function drawSky(B){
+  const cv=$('#skyCv'), c=cv.getContext('2d'), W=600, cx=300, cy=300, R=250; c.clearRect(0,0,W,W);
+  c.strokeStyle='rgba(61,245,255,.18)'; c.lineWidth=1;
+  [R,R*.72,R*.44].forEach(r=>{c.beginPath();c.arc(cx,cy,r,0,7);c.stroke();});
+  const zod=['Car','Tou','Gém','Can','Leã','Vir','Bal','Esc','Sag','Cap','Aqu','Pei'];
+  c.font='15px JetBrains Mono'; c.textAlign='center'; c.textBaseline='middle';
+  for(let i=0;i<12;i++){ const a=-(i*30)*D2R; c.beginPath(); c.moveTo(cx+Math.cos(a)*(R-8),cy+Math.sin(a)*(R-8)); c.lineTo(cx+Math.cos(a)*(R+8),cy+Math.sin(a)*(R+8)); c.stroke();
+    const am=-(i*30+15)*D2R; c.fillStyle='rgba(93,122,146,.8)'; c.fillText(zod[i],cx+Math.cos(am)*(R+28),cy+Math.sin(am)*(R+28)); }
+  c.fillStyle='#3df5ff'; c.beginPath(); c.arc(cx,cy,5,0,7); c.fill();
+  const draw=(name,lon,r,col,size)=>{ const a=-lon*D2R, x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r;
+    c.strokeStyle=col+'55'; c.beginPath(); c.moveTo(cx,cy); c.lineTo(x,y); c.stroke();
+    c.fillStyle=col; c.beginPath(); c.arc(x,y,size,0,7); c.fill();
+    c.fillStyle='#cfe9ff'; c.font='14px JetBrains Mono'; c.fillText(name,x,y-size-11); };
+  draw('Sol',B.Sol.lon,R,'#ffd84d',11); draw('Lua',B.Lua.lon,R*.3,'#d8e4ff',7);
+  const rings={Mercúrio:.44,Vénus:.52,Marte:.6,Júpiter:.72,Saturno:.82,Úrano:.9,Neptuno:.96};
+  for(const p in rings) draw(p,B[p].lon,R*rings[p],PLANET_COL[p],p==='Júpiter'||p==='Saturno'?7:5);
+}
+function drawSSN(arr){
+  const cv=$('#ssnCv'), c=cv.getContext('2d'), W=600, H=110; c.clearRect(0,0,W,H);
+  if(!arr.length) return; const max=Math.max(...arr.map(a=>a.ssn||0),1);
+  const pts=(key,col,lw)=>{ c.strokeStyle=col; c.lineWidth=lw; c.beginPath(); let st=false;
+    arr.forEach((a,i)=>{ const v=a[key]; if(v==null||v<0) return; const x=i/(arr.length-1)*W, y=H-6-(v/max)*(H-16); st?c.lineTo(x,y):c.moveTo(x,y); st=true; }); c.stroke(); };
+  pts('ssn','rgba(255,216,77,.35)',1.2); pts('sm','#ffd84d',2.5);
+  c.fillStyle='rgba(93,122,146,.9)'; c.font='13px JetBrains Mono'; c.fillText(arr[0].tag,4,14); c.textAlign='right'; c.fillText(arr[arr.length-1].tag,W-4,14); c.textAlign='left';
+}
+
+/* ============================================================
+   FONTES DE DADOS (sem chave)
+   ============================================================ */
+const USGS='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/';
+const parseQ = j => j.features.map(f=>({id:f.id,lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],depth:f.geometry.coordinates[2],
+  mag:f.properties.mag??0,place:f.properties.place||'',time:f.properties.time,tsunami:f.properties.tsunami||0,alert:f.properties.alert||'',sig:f.properties.sig||0,url:f.properties.url})).sort((a,b)=>b.time-a.time);
+const strongest = arr => arr.reduce((m,e)=>!m||e.mag>m.mag?e:m,null);
+const seenQ=new Set(); let firstQ=true;
+async function loadQuakes(){
+  try{
+    const q=parseQ(await getJSON(USGS+'all_week.geojson')), now=Date.now();
+    q.forEach(e=>{ if(!seenQ.has(e.id)){ seenQ.add(e.id); if(!firstQ && now-e.time<3*3600e3 && e.mag>=2.5){ log(`sismo M${e.mag.toFixed(1)} ${e.place}`); tdSend({type:'event',kind:'quake',lat:e.lat,lon:e.lon,mag:e.mag,depth:e.depth,place:e.place,time:e.time,tsunami:e.tsunami}); } } });
+    firstQ=false;
+    const H=q.filter(e=>now-e.time<3600e3), D=q.filter(e=>now-e.time<86400e3);
+    const sH=strongest(H), sD=strongest(D), sW=strongest(q);
+    STATE.quakesDay=D; STATE.quakesWeek=q;
+    const energyJ=D.reduce((s,e)=>s+Math.pow(10,1.5*e.mag+4.8),0);
+    Object.assign(STATE.nature,{q_hour:H.length,q_hour_max:sH?sH.mag:0,q_hour_max_place:sH?sH.place:'',q_day:D.length,q_day_max:sD?sD.mag:0,q_day_max_place:sD?sD.place:'',
+      q_week:q.length,q_week_max:sW?sW.mag:0,q_week_max_place:sW?sW.place:'',q_day_energy_TJ:+(energyJ/1e12).toFixed(2)});
+    setT('#qH',H.length); setT('#qHm',sH?`M${sH.mag.toFixed(1)} ${sH.place}`:'—');
+    setT('#qD',D.length); setT('#qDm',sD?`M${sD.mag.toFixed(1)} ${sD.place}`:'—');
+    setT('#qW',nf.format(q.length)); setT('#qWm',sW?`M${sW.mag.toFixed(1)} ${sW.place}`:'—');
+    setT('#qE',nf1.format(energyJ/4.184e12)+' kt TNT');
+    renderList('#quakes', D.filter(e=>e.mag>=2.5).slice(0,50), e=>[COL.quake,`M${e.mag.toFixed(1)} · ${e.place}`,ago(e.time)]);
+    setLayer('quakes', D.map(e=>({lat:e.lat,lon:e.lon,r:1.012,s:3+Math.max(0,e.mag)*1.8,c:COL.quake})),0);
+    setLabels('quakes', D.filter(e=>e.mag>=4.5).slice(0,25).map(e=>({lat:e.lat,lon:e.lon,text:`M${e.mag.toFixed(1)} ${shortPlace(e.place)}`,cls:'l-q',pri:3+e.mag/10})));
+    setLayer('quakesHour', H.map(e=>({lat:e.lat,lon:e.lon,r:1.016,s:8+Math.max(0,e.mag)*2.5,c:[1,.95,.8]})),1.5);
+    rebuildNatureArcs();
+  }catch(e){ log('USGS semana: '+e.message); }
+}
+async function loadQuakesMonth(){
+  try{
+    const q=parseQ(await getJSON(USGS+'4.5_month.geojson')); STATE.quakesMonth=q;
+    const s=strongest(q); STATE.nature.q_month_max=s?s.mag:0; STATE.nature.q_month_max_place=s?s.place:'';
+    const ts=q.filter(e=>e.tsunami||e.mag>=6.5||e.alert==='orange'||e.alert==='red');
+    STATE.nature.tsunami_flags_30d=q.filter(e=>e.tsunami).length;
+    setT('#qM',s?`M${s.mag.toFixed(1)} · ${s.place} · ${dmy(s.time)}`:'—');
+    const box=$('#tsunami'); box.innerHTML='';
+    ts.slice(0,30).forEach(e=>{ const d=document.createElement('div');
+      d.innerHTML=`<span class="dot" style="background:${e.tsunami?'#4d9aff':'#ff6a3d'}"></span><span style="flex:1"></span>${e.tsunami?'<span class="tag red">tsunami</span>':''}${e.alert?`<span class="tag ${e.alert==='red'?'red':'orange'}">PAGER ${e.alert}</span>`:''}<span class="tag">${dmy(e.time)}</span>`;
+      d.children[1].textContent=`M${e.mag.toFixed(1)} · ${e.place}`; d.onclick=()=>focusOn(e.lat,e.lon); box.append(d); });
+    if(!ts.length) box.innerHTML='<div style="color:var(--dim)">nenhum evento sinalizado</div>';
+  }catch(e){ log('USGS mês: '+e.message); }
+}
+async function loadEonet(){
+  try{
+    const j=await getJSON('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=60&limit=300');
+    const ev=[], counts={};
+    j.events.forEach(e=>{ const g=e.geometry[e.geometry.length-1]; if(!g||g.type!=='Point') return;
+      const cat=e.categories[0]?.id||'other', ct=e.categories[0]?.title||cat; counts[ct]=(counts[ct]||0)+1;
+      ev.push({id:e.id,title:e.title,cat,lat:g.coordinates[1],lon:g.coordinates[0],time:Date.parse(g.date)}); });
+    ev.sort((a,b)=>b.time-a.time); STATE.eonet=ev; STATE.nature.eonet_counts=counts;
+    setH('#eonetCounts',Object.entries(counts).map(([k,v])=>`<div class="row"><span>${k}</span><span class="num">${v}</span></div>`).join(''));
+    renderList('#eonet', ev.slice(0,60), e=>[COL[e.cat]||COL.other, e.title, dmy(e.time)]);
+    setLabels('eonet', ev.slice(0,20).map(e=>({lat:e.lat,lon:e.lon,text:shortT(e.title),cls:'l-nat',pri:2})));
+    setLayer('eonet', ev.map(e=>({lat:e.lat,lon:e.lon,r:1.014,s:4,c:COL[e.cat]||COL.other})),0,0);
+    rebuildNatureArcs();
+  }catch(e){ log('EONET: '+e.message); }
+}
+const GD_TYPE={EQ:'sismo',TC:'ciclone',FL:'cheia',VO:'vulcão',DR:'seca',WF:'incêndio',TS:'tsunami'};
+const GD_COL={EQ:COL.quake,TC:COL.severeStorms,FL:COL.floods,VO:COL.volcanoes,DR:COL.drought,WF:COL.wildfires,TS:COL.floods};
+async function loadGdacs(){
+  try{
+    const j=await getJSON('https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH');
+    const ev=(j.features||[]).filter(f=>f.geometry?.type==='Point' && Date.parse(f.properties.todate||f.properties.fromdate)>Date.now()-10*864e5).map(f=>{ const p=f.properties;
+      return {type:p.eventtype, alert:p.alertlevel, name:p.name||p.eventname||'', country:p.country||'', lat:f.geometry.coordinates[1], lon:f.geometry.coordinates[0],
+        from:Date.parse(p.fromdate), sev:p.severitydata?.severitytext||'', url:p.url?.report||''}; })
+      .sort((a,b)=>({Red:0,Orange:1,Green:2}[a.alert]??3)-({Red:0,Orange:1,Green:2}[b.alert]??3) || b.from-a.from);
+    STATE.gdacs=ev; const c={}; ev.forEach(e=>{ const k=(GD_TYPE[e.type]||e.type)+' · '+e.alert; c[k]=(c[k]||0)+1; });
+    STATE.nature.gdacs_counts=c; STATE.nature.gdacs_red=ev.filter(e=>e.alert==='Red').length; STATE.nature.gdacs_orange=ev.filter(e=>e.alert==='Orange').length;
+    setH('#gdacsCounts',`<div class="row"><span>alertas vermelhos / laranja</span><span class="num"><b class="alert">${STATE.nature.gdacs_red}</b> / ${STATE.nature.gdacs_orange}</span></div>`);
+    const box=$('#gdacs'); box.innerHTML='';
+    ev.slice(0,50).forEach(e=>{ const d=document.createElement('div');
+      d.innerHTML=`<span class="dot" style="background:${hex(GD_COL[e.type]||COL.other)}"></span><span style="flex:1"></span><span class="tag ${e.alert==='Red'?'red':e.alert==='Orange'?'orange':''}">${e.alert}</span>`;
+      d.children[1].textContent=`${GD_TYPE[e.type]||e.type} · ${e.name||e.country}`; d.onclick=()=>{focusOn(e.lat,e.lon); tdSend({type:'focus',name:e.name,lat:e.lat,lon:e.lon});}; box.append(d); });
+    setLabels('gdacs', ev.filter(e=>e.alert!=='Green').slice(0,20).map(e=>({lat:e.lat,lon:e.lon,text:`${GD_TYPE[e.type]||e.type} ${shortT(e.name||e.country,20)}`,cls:'l-gd',pri:e.alert==='Red'?7:5})));
+    setLayer('gdacs', ev.map(e=>({lat:e.lat,lon:e.lon,r:1.018,s:e.alert==='Red'?12:e.alert==='Orange'?9:5,c:e.alert==='Green'?GD_COL[e.type]||COL.other:COL[e.alert]})),1.4);
+  }catch(e){ log('GDACS: '+e.message+' (pode ser bloqueio CORS)'); }
+}
+async function loadISS(){
+  try{
+    const j=await getJSON('https://api.wheretheiss.at/v1/satellites/25544');
+    STATE.cosmos.iss={lat:+j.latitude.toFixed(3),lon:+j.longitude.toFixed(3),alt_km:+j.altitude.toFixed(1),vel_kmh:Math.round(j.velocity),daylight:j.visibility==='daylight'?1:0};
+    setT('#iss',`${j.latitude.toFixed(2)} / ${j.longitude.toFixed(2)}`); setT('#issAlt',`${Math.round(j.altitude)} km · ${nf.format(Math.round(j.velocity))} km/h`);
+    issTrail.push(ll2v(j.latitude,j.longitude,1+j.altitude/6371)); if(issTrail.length>400) issTrail.shift();
+    if(issLine){ world.remove(issLine); issLine.geometry.dispose(); }
+    issLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(issTrail),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.5}));
+    issLine.visible=visFor('issLine'); world.add(issLine);
+    setLabels('iss',[{lat:j.latitude,lon:j.longitude,r:1+j.altitude/6371,text:'ISS',cls:'l-cos',pri:8}]);
+    setLayer('iss',[{lat:j.latitude,lon:j.longitude,r:1+j.altitude/6371,s:5,c:COL.iss}],0,0);
+  }catch(e){ log('ISS: '+e.message); }
+}
+// NOAA SWPC aceita dois formatos (array de arrays com cabeçalho, ou array de objetos)
+const rowsOf = j => Array.isArray(j)&&Array.isArray(j[0]) ? j.slice(1).map(r=>Object.fromEntries(j[0].map((k,i)=>[k,r[i]]))) : (Array.isArray(j)?j:[]);
+async function loadSolar(){
+  const SW='https://services.swpc.noaa.gov/';
+  try{
+    const a=rowsOf(await getJSON(SW+'json/solar-cycle/observed-solar-cycle-indices.json'));
+    const last=a[a.length-1]||{}, ser=a.slice(-15*12).map(r=>({tag:r['time-tag'],ssn:+r.ssn,sm:r.smoothed_ssn!=null&&+r.smoothed_ssn>0?+r.smoothed_ssn:null}));
+    const lastSm=[...ser].reverse().find(r=>r.sm!=null);
+    Object.assign(STATE.cosmos.solar,{ssn:+last.ssn,ssn_month:last['time-tag'],ssn_smoothed:lastSm?lastSm.sm:null,f107:last['f10.7']!=null?+last['f10.7']:null});
+    setT('#ssn',`${nf1.format(+last.ssn)} (${last['time-tag']})`); setT('#ssnS',lastSm?`${nf1.format(lastSm.sm)} (${lastSm.tag})`:'—'); drawSSN(ser);
+  }catch(e){ log('SWPC ciclo: '+e.message); }
+  try{
+    const k=rowsOf(await getJSON(SW+'products/noaa-planetary-k-index.json')), l=k[k.length-1]||{}, kp=+(l.Kp??l.kp_index??l.estimated_kp);
+    STATE.cosmos.solar.kp=kp; setH('#kp',`<span class="${kp>=5?'alert':''}">${nf2.format(kp)}</span> · ${(l.time_tag||'').slice(5,16)}`);
+  }catch(e){ log('SWPC Kp: '+e.message); }
+  try{
+    const p=rowsOf(await getJSON(SW+'products/solar-wind/plasma-1-day.json')).filter(r=>r.speed!=null&&r.speed!=='');
+    const l=p[p.length-1]||{}; STATE.cosmos.solar.wind_kms=+l.speed; STATE.cosmos.solar.wind_density=+l.density;
+    setT('#wind',`${Math.round(+l.speed)} km/s · ${nf1.format(+l.density)} p/cm³`);
+  }catch(e){ log('SWPC vento: '+e.message); }
+  try{
+    const f=rowsOf(await getJSON(SW+'json/goes/primary/xray-flares-latest.json')), l=f[f.length-1];
+    if(l){ const cls=l.max_class||l.current_class||'?', t=Date.parse(l.max_time||l.begin_time); STATE.cosmos.solar.last_flare=cls; STATE.cosmos.solar.last_flare_time=l.max_time||l.begin_time;
+      setH('#flare',`<span class="${/^X/.test(cls)?'alert':''}">${cls}</span> · ${isNaN(t)?'':dmy(t)+' '+hhmm(t)}`); }
+  }catch(e){ log('SWPC flares: '+e.message); }
+}
+async function loadClimate(){
+  const G='https://global-warming.org/api/';
+  try{ const j=await getJSON(G+'co2-api'), l=j.co2[j.co2.length-1]; STATE.humanity.co2_ppm=+l.trend; setT('#co2ppm',`${l.trend} ppm (${l.year}-${l.month}-${l.day})`); }catch(e){ log('CO₂ ppm: '+e.message); }
+  try{ const j=await getJSON(G+'methane-api'), l=j.methane[j.methane.length-1]; STATE.humanity.ch4_ppb=+l.average; setT('#ch4',`${l.average} ppb (${l.date})`); }catch(e){ log('CH₄: '+e.message); }
+  try{ const j=await getJSON(G+'temperature-api'), l=j.result[j.result.length-1]; STATE.humanity.temp_anom_c=+l.station; setT('#tanom',`+${l.station} °C (${l.time})`); }catch(e){ log('temperatura: '+e.message); }
+}
+async function loadWeather(){
+  try{
+    const lat=CITIES.map(c=>c.lat).join(','), lon=CITIES.map(c=>c.lon).join(',');
+    let j=await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m,relative_humidity_2m,is_day`);
+    if(!Array.isArray(j)) j=[j];
+    STATE.weather=CITIES.map((c,i)=>({...c,temp_c:j[i]?.current?.temperature_2m,wind_kmh:j[i]?.current?.wind_speed_10m,humidity:j[i]?.current?.relative_humidity_2m,is_day:j[i]?.current?.is_day}));
+    renderList('#weather', STATE.weather, w=>[COL.city, (w.is_day?'☀ ':'☾ ')+w.name, `${nf1.format(w.temp_c)}°C · ${Math.round(w.wind_kmh)} km/h`]);
+    setLabels('cities', STATE.weather.map(w=>({lat:w.lat,lon:w.lon,text:`${w.name} ${Math.round(w.temp_c)}°`,cls:'l-city',pri:3})));
+    setLayer('cities', STATE.weather.map(w=>({lat:w.lat,lon:w.lon,r:1.012,s:3.5,c:COL.city})),0,0);
+  }catch(e){ log('Open-Meteo: '+e.message); }
+}
+async function loadCrypto(){
+  try{
+    const j=await getJSON('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
+    Object.assign(STATE.markets,{btc_usd:j.bitcoin.usd,btc_24h_pct:+j.bitcoin.usd_24h_change.toFixed(2),eth_usd:j.ethereum.usd,eth_24h_pct:+j.ethereum.usd_24h_change.toFixed(2)});
+    const fmt=(v,c)=>`$${nf.format(v)} <span style="color:${c>=0?'var(--ok)':'var(--hot)'}">${c>=0?'+':''}${c.toFixed(2)}%</span>`;
+    setH('#btc',fmt(j.bitcoin.usd,j.bitcoin.usd_24h_change)); setH('#eth',fmt(j.ethereum.usd,j.ethereum.usd_24h_change));
+    setT('#mktT',new Date().toISOString().slice(11,16)+' UTC');
+  }catch(e){ log('CoinGecko: '+e.message); }
+}
+async function loadBrent(){
+  const key=safeLS('eiaKey'); if(!key) return;
+  try{
+    const j=await getJSON(`https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${encodeURIComponent(key)}&frequency=daily&data[0]=value&facets[series][]=RBRTE&sort[0][column]=period&sort[0][direction]=desc&length=1`);
+    const r=j.response.data[0]; STATE.markets.brent_usd=+r.value; STATE.markets.brent_date=r.period; setT('#brent',`$${r.value} (${r.period})`);
+  }catch(e){ setT('#brent','erro EIA'); log('EIA: '+e.message); }
+}
+async function loadNews(){
+  try{
+    const q=encodeURIComponent('(war OR airstrike OR ceasefire OR shelling) sourcelang:english');
+    const j=await getJSON(`https://api.gdeltproject.org/api/v2/doc/doc?query=${q}&mode=artlist&maxrecords=20&format=json&sort=datedesc`);
+    STATE.news=(j.articles||[]).map(a=>({title:a.title,url:a.url,domain:a.domain}));
+    const box=$('#news'); box.innerHTML='';
+    STATE.news.forEach(n=>{ const d=document.createElement('div'), a=document.createElement('a'); a.href=n.url; a.target='_blank'; a.rel='noopener';
+      a.style.cssText='color:inherit;text-decoration:none;flex:1'; a.textContent=n.title; d.append(a); const s=document.createElement('span'); s.className='tag'; s.textContent=n.domain; d.append(s); box.append(d); });
+  }catch(e){ log('GDELT: '+e.message); }
+}
+function loadConflicts(){
+  renderList('#conflicts', CONFLICTS, c=>[COL.conflict, c.name, '']);
+  setLabels('conflicts', CONFLICTS.map(c=>({lat:c.lat,lon:c.lon,text:c.name,cls:'l-con',pri:6})));
+  setLayer('conflicts', CONFLICTS.map(c=>({lat:c.lat,lon:c.lon,r:1.015,s:10,c:COL.conflict})),.6);
+  buildArcs('hum',[...CONFLICTS,CONFLICTS[0]].map(c=>({...c,c:COL.conflict})));
+}
+function rebuildNatureArcs(){
+  const ev=[...STATE.quakesDay.filter(e=>e.mag>=4).slice(0,16).map(e=>({...e,c:COL.quake})),
+            ...STATE.eonet.slice(0,12).map(e=>({...e,c:COL[e.cat]||COL.other}))].sort((a,b)=>a.time-b.time);
+  buildArcs('nat',ev);
+}
+function renderList(sel, arr, fn){
+  const box=$(sel); box.innerHTML='';
+  arr.forEach(it=>{ const [c,txt,tag]=fn(it), d=document.createElement('div');
+    d.innerHTML=`<span class="dot" style="background:${hex(c)}"></span><span style="flex:1"></span>${tag?`<span class="tag">${tag}</span>`:''}`;
+    d.children[1].textContent=txt; d.onclick=()=>{ if(it.lat!=null) focusOn(it.lat,it.lon); tdSend({type:'focus',name:txt,lat:it.lat,lon:it.lon}); };
+    box.append(d); });
+}
+
+/* ============================================================
+   CLIMA ESPACIAL — auroras, Sol ao vivo, raios-X, radioamador
+   ============================================================ */
+const SWPC='https://services.swpc.noaa.gov/';
+STATE.cosmos.aurora={}; STATE.cosmos.radio={}; STATE.aurora=[];
+let AUR=null; // Float32Array 360x181, índice lon*181+(lat+90)
+let sunBand='0193';
+function sunImgURL(){ const k=sunBand; return `https://sdo.gsfc.nasa.gov/assets/img/latest/latest_512_${k}.jpg?t=${Math.floor(Date.now()/600000)}`; }
+function loadSunImg(){ const img=$('#sunImg'); img.onerror=()=>setT('#sunImgT','imagem indisponível'); img.onload=()=>setT('#sunImgT','NASA SDO · '+new Date().toISOString().slice(11,16)+' UTC'); img.src=sunImgURL();
+  STATE.cosmos.sun_image_url=sunImgURL().split('?')[0]; }
+document.querySelectorAll('#sunBtns button').forEach(b=>b.onclick=()=>{ sunBand=b.dataset.k; document.querySelectorAll('#sunBtns button').forEach(x=>x.classList.toggle('on',x===b)); loadSunImg(); });
+const xrClass = f => { if(!(f>0)) return '—'; const L=[['X',1e-4],['M',1e-5],['C',1e-6],['B',1e-7],['A',1e-8]]; for(const [c,b] of L) if(f>=b) return c+(f/b).toFixed(1); return 'A'+(f/1e-8).toFixed(1); };
+async function loadAurora(){
+  try{
+    const j=await getJSON(SWPC+'json/ovation_aurora_latest.json',20000);
+    const fmt=(j['Data Format']||'[Longitude, Latitude, Aurora]').toLowerCase(), latFirst=fmt.indexOf('lat')<fmt.indexOf('lon');
+    AUR=new Float32Array(360*181); let maxN=0, maxS=0, pN=null, pS=null, area=0; const pts=[], tbl=[];
+    (j.coordinates||[]).forEach(c=>{ let lon=latFirst?c[1]:c[0], lat=latFirst?c[0]:c[1]; const v=+c[2]; lon=((Math.round(lon)%360)+360)%360; const la=Math.round(lat);
+      if(la<-90||la>90) return; AUR[lon*181+la+90]=v;
+      if(la>0&&v>maxN){maxN=v;pN=[la,lon];} if(la<0&&v>maxS){maxS=v;pS=[la,lon];}
+      if(v>=10) area+=Math.cos(la*D2R)*111.32*111.32; // km² aprox. por célula de 1°
+      if(v>=3){ const lo=lon>180?lon-360:lon, f=Math.min(1,v/60);
+        pts.push({lat:la,lon:lo,r:1.014,s:1.6+f*3.2,c:[.2+f*.8*(v>40?1:0), .55+.45*f, .35+.25*f*(v>40?1:0)]}); if(v>=10) tbl.push([la,lo,Math.round(v)]); } });
+    STATE.aurora=tbl;
+    setLayer('aurora',pts,.25,0);
+    const lab=[]; if(pN&&maxN>=5) lab.push({lat:pN[0],lon:pN[1]>180?pN[1]-360:pN[1],r:1.02,text:`AURORA N ${Math.round(maxN)}%`,cls:'l-aur',pri:11});
+    if(pS&&maxS>=5) lab.push({lat:pS[0],lon:pS[1]>180?pS[1]-360:pS[1],r:1.02,text:`AURORA S ${Math.round(maxS)}%`,cls:'l-aur',pri:11});
+    setLabels('aurora',lab);
+    const st=maxN>=50||maxS>=50?'FORTE':maxN>=20||maxS>=20?'ATIVA':maxN>=8||maxS>=8?'FRACA':'QUASE NULA';
+    setH('#aurStatus',`<span class="${st==='FORTE'?'ham-good':st==='ATIVA'?'ham-fair':'ham-closed'}">${st}</span>`);
+    setT('#aurMax',`${Math.round(maxN)}% / ${Math.round(maxS)}%`); setT('#aurArea',`${nf.format(Math.round(area/1e6*10)/10)} M km²`);
+    setT('#aurT','NOAA OVATION · '+String(j['Forecast Time']||j['Observation Time']||'').slice(11,16)+' UTC');
+    Object.assign(STATE.cosmos.aurora,{status:st,max_n:Math.round(maxN),max_s:Math.round(maxS),area_mkm2:+(area/1e6).toFixed(2),forecast_time:j['Forecast Time']||''});
+    auroraForCity();
+  }catch(e){ log('aurora: '+e.message); }
+}
+function auroraForCity(){
+  if(!AUR) return; const lon=((Math.round(city.lon)%360)+360)%360, here=AUR[lon*181+Math.round(city.lat)+90];
+  // limite equatorial no hemisfério da cidade
+  const north=city.lat>=0; let edge=null;
+  for(let la=north?40:-40; north?la<=90:la>=-90; la+=north?1:-1){ if(AUR[lon*181+la+90]>=10){ edge=la; break; } }
+  setT('#aurCity',city.name); setT('#aurEdge',edge==null?'sem aurora':`${Math.abs(edge)}° ${north?'N':'S'}`);
+  const dist=edge==null?null:Math.abs(edge-city.lat);
+  setT('#aurHere', here>=10?`provável sobre a cidade (${Math.round(here)}%)`: dist!=null&&dist<=8?'possível no horizonte (céu escuro, a '+(north?'norte':'sul')+')':'não visível');
+  Object.assign(STATE.cosmos.aurora,{city:city.name,city_prob:Math.round(here||0),edge_lat:edge==null?0:edge,visible_city:here>=10?2:dist!=null&&dist<=8?1:0});
+}
+async function loadXrays(){
+  try{
+    const a=(await getJSON(SWPC+'json/goes/primary/xrays-1-day.json',20000)).filter(r=>r.energy==='0.1-0.8nm'&&r.flux>0);
+    if(!a.length) return;
+    const last=a[a.length-1], mx=a.reduce((m,r)=>r.flux>m.flux?r:m,a[0]);
+    setH('#xrNow',`<b>${xrClass(last.flux)}</b> · ${last.flux.toExponential(1)} W/m²`); setT('#xrMax',`${xrClass(mx.flux)} às ${hhmm(Date.parse(mx.time_tag))}`);
+    Object.assign(STATE.cosmos.solar,{xray_flux:last.flux,xray_class:xrClass(last.flux),xray_max24_class:xrClass(mx.flux)});
+    const cv=$('#xrCv'), c=cv.getContext('2d'), W=600, H=170, lo=-9, hi=-3, y=f=>H-14-((Math.log10(f)-lo)/(hi-lo))*(H-24);
+    c.clearRect(0,0,W,H); c.font='12px JetBrains Mono';
+    [['A',-8],['B',-7],['C',-6],['M',-5],['X',-4]].forEach(([k,e])=>{ const yy=y(Math.pow(10,e)); c.strokeStyle=k==='M'||k==='X'?'rgba(255,77,109,.35)':'rgba(93,122,146,.3)'; c.beginPath(); c.moveTo(0,yy); c.lineTo(W-18,yy); c.stroke(); c.fillStyle='rgba(93,122,146,.9)'; c.fillText(k,W-14,yy-6); });
+    const t0=Date.parse(a[0].time_tag), t1=Date.parse(last.time_tag);
+    c.strokeStyle='#ffd84d'; c.lineWidth=1.6; c.beginPath();
+    a.forEach((r,i)=>{ const x=(Date.parse(r.time_tag)-t0)/(t1-t0||1)*(W-20), yy=Math.max(4,Math.min(H-14,y(r.flux))); i?c.lineTo(x,yy):c.moveTo(x,yy); }); c.stroke();
+    c.fillStyle='rgba(93,122,146,.9)'; c.fillText('−24 h',2,H-2); c.fillText('agora',W-60,H-2);
+  }catch(e){ log('raios-X: '+e.message); }
+  try{
+    const f=await getJSON(SWPC+'json/goes/primary/xray-flares-7-day.json',20000), box=$('#flares'); box.innerHTML='';
+    (Array.isArray(f)?f:[]).slice().reverse().filter(x=>x.max_class).slice(0,15).forEach(x=>{ const d=document.createElement('div'), cl=String(x.max_class), col=/^X/.test(cl)?'#ff4d6d':/^M/.test(cl)?'#ffb347':'#ffd84d';
+      d.innerHTML=`<span class="dot" style="background:${col}"></span><span style="flex:1"></span><span class="tag">${dmy(Date.parse(x.max_time))} ${hhmm(Date.parse(x.max_time))}</span>`; d.children[1].textContent=cl; box.append(d); });
+  }catch(e){ log('erupções: '+e.message); }
+}
+async function loadSpaceWx(){
+  try{ const j=await getJSON(SWPC+'products/noaa-scales.json'), n=j['0']||j[0]||{};
+    const sc=(k,id)=>{ const o=n[k]||{}, v=o.Scale==null||o.Scale===''?0:+o.Scale; setT('#sc'+k,k+v); setT('#sc'+k+'t',o.Text||'none'); $('#sc'+k).style.color=v>=3?'var(--hot)':v>=1?'var(--warm)':'#fff'; return v; };
+    STATE.cosmos.radio.scale_r=sc('R'); STATE.cosmos.radio.scale_s=sc('S'); STATE.cosmos.radio.scale_g=sc('G');
+  }catch(e){ log('escalas NOAA: '+e.message); }
+  try{ let j=await getJSON(SWPC+'products/summary/10cm-flux.json'); if(Array.isArray(j)) j=j[j.length-1]; STATE.cosmos.radio.sfi=+(j.Flux??j.flux); }
+  catch(e){ if(STATE.cosmos.solar.f107) STATE.cosmos.radio.sfi=STATE.cosmos.solar.f107; log('SFI: '+e.message); }
+  try{ const k=rowsOf(await getJSON(SWPC+'products/noaa-planetary-k-index.json')), l=k[k.length-1]||{};
+    STATE.cosmos.radio.kp=+(l.Kp??l.kp_index??l.estimated_kp??STATE.cosmos.solar.kp??0); STATE.cosmos.radio.a_index=+(l.a_running??l.A??0); }catch(e){}
+  hamStatus();
+}
+function hamStatus(){
+  const R=STATE.cosmos.radio, sfi=R.sfi||STATE.cosmos.solar.f107||0, kp=R.kp??STATE.cosmos.solar.kp??0, r=R.scale_r||0, sS=R.scale_s||0, g=R.scale_g||0;
+  const L=['fechado','fraco','razoável','bom'], cls=['ham-closed','ham-poor','ham-fair','ham-good'];
+  const clamp=v=>Math.max(0,Math.min(3,v));
+  let b={ '80–40 m':[kp<4?2:1, kp<4?3:kp<6?2:1], '30–20 m':[sfi>=90&&kp<5?3:sfi>=70?2:1, sfi>=150&&kp<4?2:sfi>=110?1:0],
+          '17–15 m':[sfi>=120&&kp<5?3:sfi>=95?2:1, sfi>=180&&kp<4?1:0], '12–10 m':[sfi>=150&&kp<4?3:sfi>=115?2:1, 0] };
+  for(const k in b){ if(r>=2) b[k][0]=clamp(b[k][0]-(r>=3?2:1)); if(g>=2) b[k][1]=clamp(b[k][1]-(g>=4?2:1)); if(kp>=6) b[k][0]=clamp(b[k][0]-1); }
+  const isDay=sunAltAz(city.lat,city.lon,Date.now()).alt>-6, col=isDay?0:1;
+  const now=Object.values(b).map(v=>v[col]).sort((x,y)=>y-x), score=(now[0]+now[1])/2; // estado = média das 2 melhores bandas
+  const st=score>=2.4?'BOM':score>=1.6?'RAZOÁVEL':score>=0.8?'FRACO':'MAU';
+  setH('#hamStatus',`<span class="${score>=2.4?'ham-good':score>=1.6?'ham-fair':'ham-poor'}">${st} AGORA</span> <small style="font-size:11px;color:var(--dim)">(${isDay?'dia':'noite'} em ${city.name})</small>`);
+  setH('#hamBands',Object.entries(b).map(([k,v])=>`<tr><td>${k}</td><td class="${cls[v[0]]}">${L[v[0]]}</td><td class="${cls[v[1]]}">${L[v[1]]}</td></tr>`).join(''));
+  const best=Object.entries(b).filter(([k,v])=>v[col]>=2).map(([k])=>k);
+  const notes=[];
+  notes.push(sfi>=150?`Fluxo solar alto (SFI ${Math.round(sfi)}): bandas altas abertas de dia.`:sfi>=100?`Fluxo solar moderado (SFI ${Math.round(sfi)}).`:`Fluxo solar baixo (SFI ${Math.round(sfi)}): bandas altas fracas.`);
+  notes.push(kp>=5?`Tempestade geomagnética (Kp ${kp}): ruído e absorção, sobretudo em percursos polares.`:kp>=4?`Campo geomagnético agitado (Kp ${kp}).`:`Campo geomagnético calmo (Kp ${kp}).`);
+  if(r>=1) notes.push(`Erupção solar (R${r}): possível apagão HF no lado de dia.`);
+  if(sS>=1) notes.push(`Tempestade de radiação (S${sS}): absorção nas regiões polares.`);
+  notes.push(best.length?`Melhor agora: ${best.join(', ')}.`:'Poucas bandas abertas agora.');
+  setT('#hamSummary',notes.join(' '));
+  const vhf=kp>=7?'provável':kp>=5?'possível a latitudes altas':'improvável';
+  setT('#hamVhf',vhf); setT('#hamSfi',sfi?Math.round(sfi):'—'); setT('#hamKA',`${kp} / ${R.a_index??'—'}`); setT('#hamT','estimativa · '+new Date().toISOString().slice(11,16)+' UTC');
+  Object.assign(R,{status:st,status_code:score>=2.4?3:score>=1.6?2:score>=0.8?1:0,score:+score.toFixed(2),is_day:isDay?1:0,vhf_aurora:vhf,summary:notes.join(' ')});
+  Object.entries(b).forEach(([k,v])=>{ const key=k.replace(/[^0-9]+/g,'_').replace(/_$/,''); R['band_'+key+'_day']=v[0]; R['band_'+key+'_night']=v[1]; });
+}
+
+/* ============================================================
+   TEMPO ATMOSFÉRICO — grelha de temperatura/vento, partículas, ciclones
+   ============================================================ */
+const WX={ok:false, step:15, nLat:11, nLon:24, T:null, U:null, V:null, S:null};
+const TSTOPS=[[-40,[.55,.35,1]],[-20,[.3,.5,1]],[0,[.3,.9,1]],[10,[.4,1,.6]],[20,[1,.9,.35]],[30,[1,.5,.2]],[40,[1,.15,.25]]];
+function tcol(t){ if(t<=TSTOPS[0][0]) return TSTOPS[0][1]; for(let i=1;i<TSTOPS.length;i++){ const [t1,c1]=TSTOPS[i]; if(t<=t1){ const [t0,c0]=TSTOPS[i-1], f=(t-t0)/(t1-t0); return c0.map((v,k)=>v+(c1[k]-v)*f); } } return TSTOPS[TSTOPS.length-1][1]; }
+function wxSample(arr, lat, lon){
+  const fi=Math.max(0,Math.min(WX.nLat-1.001,(lat+75)/WX.step)), i0=Math.floor(fi), ti=fi-i0;
+  let fj=((lon+180)/WX.step)%WX.nLon; if(fj<0) fj+=WX.nLon; const j0=Math.floor(fj), j1=(j0+1)%WX.nLon, tj=fj-j0;
+  const g=(i,j)=>arr[i*WX.nLon+j];
+  return (g(i0,j0)*(1-tj)+g(i0,j1)*tj)*(1-ti) + (g(i0+1,j0)*(1-tj)+g(i0+1,j1)*tj)*ti;
+}
+async function loadWxGrid(){
+  const pts=[]; for(let i=0;i<WX.nLat;i++) for(let j=0;j<WX.nLon;j++) pts.push([-75+i*WX.step, -180+j*WX.step]);
+  const T=new Float32Array(pts.length), U=new Float32Array(pts.length), V=new Float32Array(pts.length), S=new Float32Array(pts.length);
+  try{
+    for(let k=0;k<pts.length;k+=100){
+      const b=pts.slice(k,k+100);
+      let j=await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${b.map(p=>p[0]).join(',')}&longitude=${b.map(p=>p[1]).join(',')}&current=temperature_2m,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms`,20000);
+      if(!Array.isArray(j)) j=[j];
+      j.forEach((r,n)=>{ const c=r.current||{}, i=k+n, sp=c.wind_speed_10m||0, dir=(c.wind_direction_10m||0)*D2R;
+        T[i]=c.temperature_2m??0; S[i]=sp; U[i]=-sp*Math.sin(dir); V[i]=-sp*Math.cos(dir); });
+    }
+  }catch(e){ log('grelha de tempo: '+e.message); return; }
+  Object.assign(WX,{T,U,V,S,ok:true,pts});
+  let mean=0, wsum=0, tmax=-99, tmin=99, imax=0, imin=0, smax=0, is=0;
+  pts.forEach(([la],i)=>{ const w=Math.cos(la*D2R); mean+=T[i]*w; wsum+=w; if(T[i]>tmax){tmax=T[i];imax=i;} if(T[i]<tmin){tmin=T[i];imin=i;} if(S[i]>smax){smax=S[i];is=i;} });
+  mean/=wsum;
+  const ll=i=>`${pts[i][0]}°, ${pts[i][1]}°`;
+  setT('#wxMean',`${nf1.format(mean)} °C`); setT('#wxMinMax',`${nf1.format(tmax)}° (${ll(imax)}) / ${nf1.format(tmin)}° (${ll(imin)})`);
+  setT('#wxWindMax',`${nf.format(Math.round(smax*3.6))} km/h (${ll(is)})`); setT('#wxT',new Date().toISOString().slice(11,16)+' UTC');
+  Object.assign(STATE.nature,{wx_mean_t:+mean.toFixed(2),wx_max_t:+tmax.toFixed(1),wx_min_t:+tmin.toFixed(1),wx_max_wind_kmh:Math.round(smax*3.6)});
+  // pontos de temperatura (distribuição uniforme na esfera)
+  const N=7000, items=[], golden=Math.PI*(3-Math.sqrt(5));
+  for(let n=0;n<N;n++){ const y=1-(n/(N-1))*2, lat=Math.asin(y)*R2D; let lon=((n*golden)*R2D)%360; lon=lon>180?lon-360:lon;
+    items.push({lat,lon,r:1.006,s:2.8,c:tcol(wxSample(T,lat,lon))}); }
+  setLayer('wxTemp',items,0,0);
+  if(!wpLines) initWind();
+  log('grelha de tempo: '+pts.length+' pontos');
+}
+const WP_N=3000, WP_TR=7, WP_K=0.03; let wpLines=null, wpLat, wpLon, wpAge, wpTrail;
+function wpSpawn(i){ wpLat[i]=Math.asin(Math.random()*2-1)*R2D*0.95; wpLon[i]=Math.random()*360-180; wpAge[i]=Math.floor(Math.random()*90);
+  for(let t=0;t<WP_TR;t++){ wpTrail[(i*WP_TR+t)*2]=wpLat[i]; wpTrail[(i*WP_TR+t)*2+1]=wpLon[i]; } }
+function initWind(){
+  wpLat=new Float32Array(WP_N); wpLon=new Float32Array(WP_N); wpAge=new Float32Array(WP_N); wpTrail=new Float32Array(WP_N*WP_TR*2);
+  for(let i=0;i<WP_N;i++) wpSpawn(i);
+  const segs=WP_N*(WP_TR-1), g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(segs*6),3));
+  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(segs*6),3));
+  wpLines=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.95,depthWrite:false}));
+  wpLines.frustumCulled=false; arcGroups.wxWind=wpLines; wpLines.visible=visFor('wxWind'); world.add(wpLines);
+}
+function stepWind(){
+  if(!wpLines||!wpLines.visible||!WX.ok) return;
+  const P=wpLines.geometry.attributes.position.array, C=wpLines.geometry.attributes.color.array, r=1.009;
+  const xyz=(la,lo,o)=>{ const ph=(90-la)*D2R, th=(lo+180)*D2R, sp=Math.sin(ph); P[o]=-r*sp*Math.cos(th); P[o+1]=r*Math.cos(ph); P[o+2]=r*sp*Math.sin(th); };
+  for(let i=0;i<WP_N;i++){
+    const la=wpLat[i], lo=wpLon[i], u=wxSample(WX.U,la,lo), v=wxSample(WX.V,la,lo), sp=Math.hypot(u,v);
+    for(let t=0;t<WP_TR-1;t++){ wpTrail[(i*WP_TR+t)*2]=wpTrail[(i*WP_TR+t+1)*2]; wpTrail[(i*WP_TR+t)*2+1]=wpTrail[(i*WP_TR+t+1)*2+1]; }
+    let nla=la+v*WP_K, nlo=lo+u*WP_K/Math.max(.25,Math.cos(la*D2R)); if(nlo>180) nlo-=360; if(nlo<-180) nlo+=360;
+    wpLat[i]=nla; wpLon[i]=nlo; wpTrail[(i*WP_TR+WP_TR-1)*2]=nla; wpTrail[(i*WP_TR+WP_TR-1)*2+1]=nlo;
+    if(++wpAge[i]>90 || Math.abs(nla)>84 || sp<0.3) { wpSpawn(i); }
+    const bright=0.35+Math.min(1,sp/12)*0.65;
+    for(let t=0;t<WP_TR-1;t++){
+      const a=(i*WP_TR+t)*2, b=a+2, o=((i*(WP_TR-1))+t)*6;
+      let la0=wpTrail[a], lo0=wpTrail[a+1], la1=wpTrail[b], lo1=wpTrail[b+1];
+      if(Math.abs(lo1-lo0)>90){ la0=la1; lo0=lo1; }
+      xyz(la0,lo0,o); xyz(la1,lo1,o+3);
+      const f0=bright*t/(WP_TR-1), f1=bright*(t+1)/(WP_TR-1);
+      C[o]=.6*f0; C[o+1]=.92*f0; C[o+2]=f0; C[o+3]=.6*f1; C[o+4]=.92*f1; C[o+5]=f1;
+    }
+  }
+  wpLines.geometry.attributes.position.needsUpdate=true; wpLines.geometry.attributes.color.needsUpdate=true;
+}
+STATE.cyclones=[];
+async function loadCyclones(){
+  const out=[], now=Date.now();
+  try{ const j=await getJSON('https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist=TC');
+    (j.features||[]).forEach(f=>{ const p=f.properties, to=Date.parse(p.todate); if(!(p.iscurrent==='true'||p.iscurrent===true||to>now-3*864e5)) return;
+      const sd=p.severitydata||{}; out.push({src:'GDACS',name:(p.eventname||p.name||'').replace(/-\d+$/,''),lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],
+        alert:p.alertlevel,wind_kmh:/km\/h/i.test(sd.severityunit||'')?Math.round(sd.severity):null,info:sd.severitytext||'',current:p.iscurrent==='true'||to>now-12*3600e3,to:p.todate}); }); }
+  catch(e){ log('GDACS ciclones: '+e.message); }
+  try{ const j=await getJSON('https://www.nhc.noaa.gov/CurrentStorms.json');
+    (j.activeStorms||[]).forEach(s=>{ const lat=parseFloat(s.latitude)*(/S/.test(s.latitude)?-1:1), lon=parseFloat(s.longitude)*(/W/.test(s.longitude)?-1:1);
+      const cls={TD:'depressão tropical',TS:'tempestade tropical',HU:'furacão',STS:'tempestade subtropical',PTC:'potencial ciclone'}[s.classification]||s.classification;
+      const rec={src:'NHC',name:s.name,lat,lon,cls,wind_kmh:Math.round(+s.intensity*1.852),pressure:+s.pressure,move:s.movementDir!=null?`${s.movementDir}° a ${Math.round(+s.movementSpeed*1.852)} km/h`:'',current:true};
+      const ex=out.find(o=>o.name.toUpperCase()===String(s.name).toUpperCase()); if(ex) Object.assign(ex,rec,{src:'NHC+GDACS'}); else out.push(rec); }); }
+  catch(e){ log('NHC: '+e.message); }
+  out.sort((a,b)=>(b.current-a.current)||((b.wind_kmh||0)-(a.wind_kmh||0)));
+  STATE.cyclones=out;
+  const box=$('#cyclones'); box.innerHTML='';
+  if(!out.length) box.innerHTML='<div style="color:var(--dim)">nenhum ciclone ativo</div>';
+  out.forEach(c=>{ const d=document.createElement('div');
+    d.innerHTML=`<span class="dot" style="background:${c.current?'#fff':'#5d7a92'}"></span><span style="flex:1"></span>${c.wind_kmh?`<span class="tag">${c.wind_kmh} km/h</span>`:''}${c.alert?`<span class="tag ${c.alert==='Red'?'red':c.alert==='Orange'?'orange':''}">${c.alert}</span>`:''}<span class="tag">${c.current?'ativo':'recente'}</span>`;
+    d.children[1].textContent=`${c.name}${c.cls?' · '+c.cls:''}${c.move?' · '+c.move:''}`; d.onclick=()=>focusOn(c.lat,c.lon); box.append(d); });
+  setLayer('cyclones', out.map(c=>({lat:c.lat,lon:c.lon,r:1.02,s:c.current?16+(c.wind_kmh||60)/12:10,c:c.current?[1,1,1]:[.5,.6,.7]})),1.2);
+  setLabels('cyclones', out.map(c=>({lat:c.lat,lon:c.lon,r:1.02,text:`🌀 ${c.name}${c.wind_kmh?' '+c.wind_kmh+' km/h':''}`,cls:'l-cyc',pri:c.current?12:4})));
+}
+document.querySelectorAll('#wxBtns button').forEach(b=>b.onclick=()=>{ WXON[b.dataset.k]=!WXON[b.dataset.k]; b.classList.toggle('on',WXON[b.dataset.k]); applyTheme(THEME); });
+
+/* ============================================================
+   ECONOMIA — países, minérios, comércio, salário mínimo
+   ============================================================ */
+const WB={}; let selCountry=null, selMineral='lithium', selToken=0;
+const fmtUSD = v => v==null||isNaN(v) ? '—' : Math.abs(v)>=1e12 ? `$${nf2.format(v/1e12)} bi` : Math.abs(v)>=1e9 ? `$${nf1.format(v/1e9)} mil M` : Math.abs(v)>=1e6 ? `$${nf1.format(v/1e6)} M` : `$${nf.format(Math.round(v))}`;
+const fmtT = t => t>=1e9?`${nf1.format(t/1e9)} Gt`:t>=1e6?`${nf1.format(t/1e6)} Mt`:t>=1e3?`${nf.format(Math.round(t/1e3))} kt`:`${nf.format(t)} t`;
+async function ecoInit(){
+  const sel=$('#ecoSel'), opts=COUNTRIES.filter(c=>c&&c.iso3).sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">— escolher país —</option>'+opts.map(c=>`<option value="${c.iso3}">${c.name}</option>`).join('');
+  sel.onchange=()=>{ if(sel.value) selectCountry(sel.value); };
+  const bx=$('#minBtns'); bx.innerHTML='';
+  Object.entries(ECO.MINERALS).forEach(([k,m])=>{ const b=document.createElement('button'); b.textContent=m.name; b.dataset.k=k; b.onclick=()=>{ selMineral=k; renderMinerals(); }; bx.append(b); });
+  renderMinerals();
+  try{ const j=await getJSON('https://api.worldbank.org/v2/country?format=json&per_page=400');
+    (j[1]||[]).forEach(c=>{ WB[c.id]={name:c.name,region:c.region?.value,income:c.incomeLevel?.value,capital:c.capitalCity}; }); }
+  catch(e){ log('World Bank países: '+e.message); }
+  // dá até 3 s à ligação ao TouchDesigner (que faz de ponte para World Bank / Comtrade)
+  for(let i=0;i<30 && wantWS && !(ws&&ws.readyState===1);i++) await new Promise(r=>setTimeout(r,100));
+  selectCountry(safeLS('country')||'PRT', true);
+}
+function renderMinerals(){
+  const M=ECO.MINERALS[selMineral];
+  document.querySelectorAll('#minBtns button').forEach(b=>b.classList.toggle('on',b.dataset.k===selMineral));
+  const rows=Object.entries(M.r).map(([iso,t])=>({iso,t,c:CBY[iso],share:t/M.world})).sort((a,b)=>b.t-a.t);
+  STATE.minerals=rows.map(r=>({iso3:r.iso,name:r.c?r.c.name:r.iso,lat:r.c?r.c.lat:null,lon:r.c?r.c.lon:null,tonnes:r.t,share:+r.share.toFixed(4)}));
+  setT('#minWorld',`${fmtT(M.world)} (${M.unit})`);
+  const box=$('#minList'); box.innerHTML='';
+  rows.forEach(r=>{ const d=document.createElement('div');
+    d.innerHTML=`<span class="dot" style="background:#ffd27a"></span><span style="flex:1"></span><span class="tag">${fmtT(r.t)}</span><span class="tag">${nf1.format(r.share*100)}%</span>`;
+    d.children[1].textContent=r.c?r.c.name:r.iso; d.onclick=()=>selectCountry(r.iso); box.append(d); });
+  const vis=rows.filter(r=>r.c);
+  setLayer('minerals', vis.map(r=>({lat:r.c.lat,lon:r.c.lon,r:1.02,s:5+Math.sqrt(r.share)*45,c:COL_ECO.mineral})),.3);
+  setLabels('minerals', vis.slice(0,10).map(r=>({lat:r.c.lat,lon:r.c.lon,r:1.02,text:`${r.c.name} · ${M.name} ${nf1.format(r.share*100)}%`,cls:'l-min',pri:6+r.share})));
+  if(STATE.economy) STATE.economy.mineral_selected=M.name;
+  tdSend({type:'event',kind:'mineral',name:M.name});
+}
+function highlightCountry(c){
+  const name='arc_countrySel';
+  if(arcGroups[name]){ arcGroups[name].children.forEach(o=>o.geometry.dispose()); world.remove(arcGroups[name]); }
+  const grp=new THREE.Group(), g=c.feature.geometry, segs=[];
+  (g.type==='Polygon'?[g.coordinates]:g.coordinates).forEach(p=>p.forEach(ring=>{ for(let i=0;i<ring.length-1;i++) segs.push(ll2v(ring[i][1],ring[i][0],1.004),ll2v(ring[i+1][1],ring[i+1][0],1.004)); }));
+  grp.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.85})));
+  LAYER_THEME[name]='eco'; grp.visible=visFor(name); arcGroups[name]=grp; world.add(grp);
+}
+const WB_IND={population:'SP.POP.TOTL',gdp_usd:'NY.GDP.MKTP.CD',gdp_pc_usd:'NY.GDP.PCAP.CD',exports_usd:'NE.EXP.GNFS.CD',imports_usd:'NE.IMP.GNFS.CD',
+  exports_pct_gdp:'NE.EXP.GNFS.ZS',imports_pct_gdp:'NE.IMP.GNFS.ZS',resource_rents_pct_gdp:'NY.GDP.TOTL.RT.ZS',mineral_rents_pct_gdp:'NY.GDP.MINR.RT.ZS',
+  x_food:'TX.VAL.FOOD.ZS.UN',x_agri:'TX.VAL.AGRI.ZS.UN',x_fuel:'TX.VAL.FUEL.ZS.UN',x_ores:'TX.VAL.MMTL.ZS.UN',x_manf:'TX.VAL.MANF.ZS.UN',
+  m_food:'TM.VAL.FOOD.ZS.UN',m_agri:'TM.VAL.AGRI.ZS.UN',m_fuel:'TM.VAL.FUEL.ZS.UN',m_ores:'TM.VAL.MMTL.ZS.UN',m_manf:'TM.VAL.MANF.ZS.UN'};
+const CAT_COL={food:'#5cffa1',agri:'#b6e36b',fuel:'#ff6a3d',ores:'#ffd27a',manf:'#3df5ff'};
+function stackBar(id,R,pre){ const el=$(id); let rest=100, h='';
+  for(const k of ['food','agri','fuel','ores','manf']){ const v=R[pre+k]; if(v==null) continue; const w=Math.max(0,Math.min(rest,v)); rest-=w; h+=`<i style="width:${w}%;background:${CAT_COL[k]}" title="${k} ${nf1.format(v)}%"></i>`; }
+  h+=`<i style="width:${Math.max(0,rest)}%;background:#33485a"></i>`; el.innerHTML=h; }
+async function selectCountry(iso3, quiet){
+  const c=CBY[iso3]; if(!c) return; selCountry=c; safeLS('country',iso3); $('#ecoSel').value=iso3;
+  if(!quiet) focusOn(c.lat,c.lon);
+  highlightCountry(c);
+  const wb=WB[iso3]||{}, token=++selToken;
+  setT('#ecoName', wb.name||c.name); setT('#ecoMeta',[wb.region,wb.income,wb.capital?'capital: '+wb.capital:''].filter(Boolean).join(' · ')||'—');
+  setLabels('countrySel',[{lat:c.lat,lon:c.lon,r:1.02,text:(wb.name||c.name).toUpperCase(),cls:'l-sel',pri:20}]);
+  const mw=ECO.MINWAGE[iso3];
+  setT('#ecoMW', mw ? (mw[0]==null?'sem mínimo nacional':`$${nf.format(mw[0])} /mês`) : 'sem dados');
+  setT('#ecoMWd', mw&&mw[1]?mw[1]:'—'); setT('#ecoMWh', mw&&mw[0]?`$${nf2.format(mw[0]/173)}`:'—');
+  const mins=Object.entries(ECO.MINERALS).filter(([k,m])=>m.r[iso3]).map(([k,m])=>({k,name:m.name,t:m.r[iso3],share:m.r[iso3]/m.world,unit:m.unit}));
+  setH('#ecoMin', mins.length? mins.map(m=>`<div class="row"><span>${m.name}</span><span class="num">${fmtT(m.t)} · ${nf1.format(m.share*100)}% do mundo</span></div>`).join('') : '<span style="color:var(--dim)">nenhuma reserva relevante nos 5 minerais seguidos</span>');
+  STATE.economy={iso3, name:wb.name||c.name, region:wb.region||'', income:wb.income||'', capital:wb.capital||'',
+    min_wage_usd_month:mw&&mw[0]!=null?mw[0]:-1, min_wage_since:mw?mw[1]:'', mineral_selected:ECO.MINERALS[selMineral].name};
+  mins.forEach(m=>{ STATE.economy[m.k+'_reserves_t']=m.t; STATE.economy[m.k+'_share']=+m.share.toFixed(4); });
+  ['#ecoExp','#ecoImp','#ecoBal','#ecoGdpM'].forEach(i=>setT(i,'…')); setH('#ecoStats','<div class="row"><span>a carregar…</span></div>');
+  ['#ecoXprod','#ecoMprod','#ecoXpart','#ecoMpart'].forEach(i=>setH(i,'')); setT('#ecoTradeNote','');
+  tdSend({type:'event',kind:'country',name:wb.name||c.name,lat:c.lat,lon:c.lon});
+  // via TouchDesigner (sem CORS, em thread) se estiver ligado; senão, pedido direto
+  if(ws&&ws.readyState===1){ pendingEco={c,token}; tdSend({type:'need',kind:'country',iso3,ct:CT_FIX[c.num]||c.num,token}); return; }
+  const res=await Promise.all(Object.entries(WB_IND).map(async([k,code])=>{ try{
+    const j=await getJSON(`https://api.worldbank.org/v2/country/${iso3}/indicator/${code}?format=json&mrnev=1`); const d=j[1]&&j[1][0];
+    return [k,d&&d.value!=null?{v:+d.value,y:d.date}:null]; }catch(e){ return [k,null]; } }));
+  if(token!==selToken) return;
+  applyWB(c, Object.fromEntries(res.filter(r=>r[1])));
+  loadTrade(c, token);
+}
+let pendingEco=null;
+function applyWB(c, wb){
+  const R={}, Y={}; Object.entries(wb||{}).forEach(([k,o])=>{ if(o&&o.v!=null){ R[k]=+o.v; Y[k]=o.y; } });
+  Object.entries(R).forEach(([k,v])=>STATE.economy[k]=+(+v).toFixed(k.includes('usd')||k==='population'?0:2));
+  if(R.exports_usd!=null&&R.imports_usd!=null) STATE.economy.trade_balance_usd=Math.round(R.exports_usd-R.imports_usd);
+  if(!Object.keys(R).length){ setH('#ecoStats','<div class="row"><span>World Bank sem resposta</span></div>'); return; }
+  const yr=k=>Y[k]?` <span class="tag">${Y[k]}</span>`:'';
+  setH('#ecoStats',[['população',R.population!=null?nf.format(R.population):'—','population'],['PIB',fmtUSD(R.gdp_usd),'gdp_usd'],['PIB per capita',fmtUSD(R.gdp_pc_usd),'gdp_pc_usd'],
+    ['rendas de recursos naturais',R.resource_rents_pct_gdp!=null?nf1.format(R.resource_rents_pct_gdp)+'% PIB':'—','resource_rents_pct_gdp'],
+    ['rendas minerais',R.mineral_rents_pct_gdp!=null?nf2.format(R.mineral_rents_pct_gdp)+'% PIB':'—','mineral_rents_pct_gdp']]
+    .map(([a,b,k])=>`<div class="row"><span>${a}</span><span class="num">${b}${yr(k)}</span></div>`).join(''));
+  setH('#ecoExp',`${fmtUSD(R.exports_usd)}${R.exports_pct_gdp!=null?' · '+nf1.format(R.exports_pct_gdp)+'% PIB':''}`);
+  setH('#ecoImp',`${fmtUSD(R.imports_usd)}${R.imports_pct_gdp!=null?' · '+nf1.format(R.imports_pct_gdp)+'% PIB':''}`);
+  const bal=R.exports_usd!=null&&R.imports_usd!=null?R.exports_usd-R.imports_usd:null;
+  setH('#ecoBal', bal==null?'—':`<span style="color:${bal>=0?'var(--ok)':'var(--hot)'}">${bal>=0?'+':''}${fmtUSD(bal)}</span>`);
+  setT('#ecoGdpM', R.gdp_pc_usd!=null?`$${nf.format(Math.round(R.gdp_pc_usd/12))}`:'—');
+  stackBar('#ecoXbar',R,'x_'); stackBar('#ecoMbar',R,'m_');
+}
+const cleanCT = rows => (rows||[]).filter(r=>(r.partner2Code??0)===0 && (r.motCode??0)===0 && (!r.customsCode||r.customsCode==='C00'));
+async function loadTrade(c, token){
+  const rc=CT_FIX[c.num]||c.num, base='https://comtradeapi.un.org/public/v1/preview/C/A/HS';
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  for(const yr of [new Date().getUTCFullYear()-2, new Date().getUTCFullYear()-3]){
+    try{
+      const q=async(cmd,flow,partner)=>(await getJSON(`${base}?reporterCode=${rc}&period=${yr}&cmdCode=${cmd}&flowCode=${flow}${partner!=null?'&partnerCode='+partner:''}&includeDesc=true`)).data;
+      const px=await q('TOTAL','X'); if(token!==selToken) return;
+      if(!cleanCT(px).some(r=>r.partnerCode>0)) continue;
+      await sleep(700); const pm=await q('TOTAL','M'); await sleep(700); const cx=await q('AG2','X',0); await sleep(700); const cm=await q('AG2','M',0);
+      if(token!==selToken) return;
+      return renderTrade(c,yr,px,pm,cx,cm);
+    }catch(e){ log('Comtrade: '+e.message); break; }
+  }
+  if(token===selToken) tradeFail(c);
+}
+function tradeFail(c){
+  const oec=`https://oec.world/en/profile/country/${(c.iso3||'').toLowerCase()}`;
+  STATE.partners=[]; STATE.products=[]; buildArcPairs('eco',[]); setLayer('partners',[]); setLabels('partners',[]);
+  setH('#ecoTradeNote',`Detalhe por produto/parceiro indisponível (UN Comtrade sem resposta). Ver <a href="${oec}" target="_blank" rel="noopener" style="color:var(--acc)">OEC</a>.`);
+}
+function renderTrade(c,yr,px0,pm0,cx0,cm0){
+  const oec=`https://oec.world/en/profile/country/${(c.iso3||'').toLowerCase()}`;
+  const px=cleanCT(px0).filter(r=>r.partnerCode>0&&r.partnerCode<899), pm=cleanCT(pm0).filter(r=>r.partnerCode>0&&r.partnerCode<899), cx=cleanCT(cx0), cm=cleanCT(cm0);
+  const top=(arr,key,n)=>{ const m={}; arr.forEach(r=>{ const k=r[key]; m[k]=m[k]||{...r,primaryValue:0}; m[k].primaryValue+=r.primaryValue||0; }); return Object.values(m).sort((a,b)=>b.primaryValue-a.primaryValue).slice(0,n); };
+  const partner=(r,flow)=>{ const num=CT_UNFIX[r.partnerCode]||r.partnerCode, pc=CNUM[num]; return {flow,code:num,name:r.partnerDesc||(pc&&pc.name)||String(num),lat:pc?pc.lat:null,lon:pc?pc.lon:null,value_usd:Math.round(r.primaryValue)}; };
+  const product=(r,flow)=>{ const k=String(r.cmdCode).padStart(2,'0'); return {flow,code:k,name:HS2[k]||r.cmdDesc||('HS '+k),value_usd:Math.round(r.primaryValue)}; };
+  const TX=top(px,'partnerCode',8).map(r=>partner(r,'X')), TM=top(pm,'partnerCode',8).map(r=>partner(r,'M'));
+  const PX=top(cx,'cmdCode',8).map(r=>product(r,'X')), PM=top(cm,'cmdCode',8).map(r=>product(r,'M'));
+  STATE.partners=[...TX,...TM]; STATE.products=[...PX,...PM];
+  const sum=a=>a.reduce((s,r)=>s+(r.primaryValue||0),0), totX=sum(px), totM=sum(pm);
+  const lst=(id,arr,tot,col)=>{ const box=$(id); box.innerHTML='';
+    arr.forEach(r=>{ const d=document.createElement('div');
+      d.innerHTML=`<span class="dot" style="background:${col}"></span><span style="flex:1"></span><span class="tag">${fmtUSD(r.value_usd)}</span>${tot?`<span class="tag">${nf1.format(r.value_usd/tot*100)}%</span>`:''}`;
+      d.children[1].textContent=r.name; if(r.lat!=null) d.onclick=()=>focusOn(r.lat,r.lon); box.append(d); }); };
+  lst('#ecoXprod',PX,totX,'#9fe8ff'); lst('#ecoMprod',PM,totM,'#ff8cbf'); lst('#ecoXpart',TX,totX,'#9fe8ff'); lst('#ecoMpart',TM,totM,'#ff8cbf');
+  setH('#ecoTradeNote',`Mercadorias, ${yr} (UN Comtrade). Mais detalhe: <a href="${oec}" target="_blank" rel="noopener" style="color:var(--acc)">OEC</a>`);
+  const pairsX=TX.filter(p=>p.lat!=null).map(p=>[{lat:c.lat,lon:c.lon,c:COL_ECO.expo},{lat:p.lat,lon:p.lon}]);
+  const pairsM=TM.filter(p=>p.lat!=null).map(p=>[{lat:p.lat,lon:p.lon,c:COL_ECO.impo},{lat:c.lat,lon:c.lon}]);
+  buildArcPairs('eco',[...pairsX,...pairsM],.35);
+  setLayer('partners',[...TX,...TM].filter(p=>p.lat!=null).map(p=>({lat:p.lat,lon:p.lon,r:1.012,s:5,c:p.flow==='X'?COL_ECO.expo:COL_ECO.impo})),0,0);
+  const seen=new Set(); setLabels('partners',[...TX.slice(0,6),...TM.slice(0,6)].filter(p=>p.lat!=null&&!seen.has(p.name)&&seen.add(p.name)).map(p=>({lat:p.lat,lon:p.lon,text:p.name,cls:'l-part',pri:5})));
+}
+
+/* ============================================================
+   PONTE TOUCHDESIGNER (WebSocket)
+   ============================================================ */
+var ws=null; let wantWS=false, sent=0, snapTimer=null;
+function snapshot(){
+  updateCounters(true);
+  const r3=x=>+(+x).toFixed(3);
+  const cosmos=JSON.parse(JSON.stringify(STATE.cosmos)); delete cosmos.moon.nextFullT; delete cosmos.moon.nextNewT;
+  return { type:'snapshot', ts:Date.now(), iso:new Date().toISOString(), theme:THEME,
+    humanity:STATE.humanity, markets:STATE.markets, nature:STATE.nature, cosmos,
+    quakes:STATE.quakesDay.slice(0,200).map(e=>[r3(e.lat),r3(e.lon),+e.mag.toFixed(1),+(e.depth||0).toFixed(1),e.time,e.tsunami]),
+    quakes_month:STATE.quakesMonth.slice(0,100).map(e=>[r3(e.lat),r3(e.lon),+e.mag.toFixed(1),e.time,e.tsunami,e.place]),
+    eonet:STATE.eonet.slice(0,150).map(e=>[r3(e.lat),r3(e.lon),e.cat,e.title]),
+    gdacs:STATE.gdacs.slice(0,150).map(e=>[r3(e.lat),r3(e.lon),e.type,e.alert,e.name]),
+    planets:STATE.planets.map(p=>[p.name,p.lon,p.lat,p.dist_au,p.elong,p.retro?1:0,p.visible?1:0]),
+    cosmic_events:STATE.cosEvents.map(e=>[e.type,e.name,new Date(e.t).toISOString().slice(0,16),+((e.t-Date.now())/864e5).toFixed(2)]),
+    weather:STATE.weather.map(w=>({name:w.name,lat:w.lat,lon:w.lon,temp_c:w.temp_c,wind_kmh:w.wind_kmh,humidity:w.humidity,is_day:w.is_day})),
+    economy:STATE.economy,
+    aurora:STATE.aurora.filter((_,i)=>i%2===0).slice(0,1500),
+    cyclones:STATE.cyclones.map(c=>[c.name,+(+c.lat).toFixed(2),+(+c.lon).toFixed(2),c.wind_kmh||0,c.current?1:0,c.cls||c.info||'',c.src]),
+    wx_grid:WX.ok?WX.pts.map((p,i)=>[p[0],p[1],+WX.T[i].toFixed(1),+WX.U[i].toFixed(2),+WX.V[i].toFixed(2)]):[],
+    partners:STATE.partners.map(p=>[p.flow,p.name,p.lat==null?'':+p.lat.toFixed(3),p.lon==null?'':+p.lon.toFixed(3),p.value_usd]),
+    products:STATE.products.map(p=>[p.flow,p.code,p.name,p.value_usd]),
+    minerals:STATE.minerals.map(m=>[m.iso3,m.name,m.lat==null?'':+m.lat.toFixed(3),m.lon==null?'':+m.lon.toFixed(3),m.tonnes,m.share]),
+    conflicts:CONFLICTS, news:STATE.news.slice(0,10).map(n=>n.title) };
+}
+function tdSend(obj){ if(ws&&ws.readyState===1){ ws.send(JSON.stringify(obj)); sent++; setT('#tdSent',sent); } }
+function tdConnect(){
+  const url=$('#tdUrl').value.trim(); safeLS('tdUrl',url);
+  try{ ws=new WebSocket(url); }catch(e){ log('WS: '+e.message); return; }
+  ws.onopen=()=>{ setT('#tdStatus','ligado'); $('#tdStatus').className='on'; log('ligado ao TouchDesigner'); tdSend(snapshot());
+    if(selCountry && (STATE.economy.gdp_usd==null || !STATE.partners.length)) selectCountry(selCountry.iso3,true); };
+  ws.onclose=()=>{ setT('#tdStatus','desligado'); $('#tdStatus').className='off'; if(wantWS) setTimeout(tdConnect,4000); };
+  ws.onerror=()=>{};
+  ws.onmessage=ev=>{ try{ const m=JSON.parse(ev.data);
+    if(m.cmd==='focus') focusOn(m.lat,m.lon);
+    if(m.cmd==='zoom') zoom=Math.max(1.6,Math.min(6,+m.value));
+    if(m.cmd==='theme') applyTheme(m.value);
+    if(m.cmd==='city'){ const c=CITIES.find(c=>c.name===m.value); if(c){ city=c; $('#citySel').value=c.name; updateSunMoon(); } }
+    if(m.cmd==='snapshot'){ lastPull=Date.now(); tdSend(snapshot()); setT('#tdStatus','ligado · pull'); }
+    if(m.cmd==='country') selectCountry(String(m.value).toUpperCase());
+    if(m.cmd==='url_data'){ const q=tdReq[m.id]; if(q){ delete tdReq[m.id]; m.status===200?q.res(m.body):q.rej(new Error('TD '+m.status+' '+(m.error||''))); } }
+    if(m.cmd==='eco_data' && pendingEco && m.token===selToken){ applyWB(pendingEco.c, m.wb); log(`World Bank via TD: ${Object.keys(m.wb||{}).length} indicadores`); }
+    if(m.cmd==='eco_trade' && pendingEco && m.token===selToken){ if(m.year) renderTrade(pendingEco.c,m.year,m.px,m.pm,m.cx,m.cm); else tradeFail(pendingEco.c); }
+    if(m.cmd==='mineral' && ECO.MINERALS[m.value]){ selMineral=m.value; renderMinerals(); }
+    if(m.cmd==='interval'){ $('#tdInt').value=m.value; restartSnapTimer(); }
+    if(m.cmd==='log') log('TD: '+m.text);
+  }catch(e){} };
+}
+// relógio num Web Worker: não é travado quando o separador está em segundo plano
+let lastPull=0, lastSnap=0;
+const ticker=new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),100)'],{type:'text/javascript'})));
+ticker.onmessage=()=>{
+  updateCounters();
+  const now=Date.now(), iv=Math.max(.2,parseFloat($('#tdInt').value)||2)*1000;
+  // se o TD estiver a pedir snapshots (modo pull), a página não envia por iniciativa própria
+  if(now-lastPull>5000 && now-lastSnap>=iv){ lastSnap=now; tdSend(snapshot()); }
+};
+function restartSnapTimer(){ lastSnap=0; }
+$('#tdBtn').onclick=()=>{ if(wantWS){ wantWS=false; ws&&ws.close(); setT('#tdBtn','ligar'); } else { wantWS=true; tdConnect(); setT('#tdBtn','desligar'); } };
+$('#tdInt').onchange=restartSnapTimer;
+$('#showJson').onclick=()=>{ const p=$('#json'); p.hidden=!p.hidden; if(!p.hidden) p.textContent=JSON.stringify(snapshot(),null,1).slice(0,30000); };
+$('#copyJson').onclick=async()=>{ try{ await navigator.clipboard.writeText(JSON.stringify(snapshot())); log('JSON copiado'); }catch(e){ log('cópia recusada'); } };
+$('#eiaSave').onclick=()=>{ safeLS('eiaKey',$('#eiaKey').value.trim()); loadBrent(); };
+
+/* ============================================================
+   ARRANQUE
+   ============================================================ */
+(function init(){
+  const sel=$('#citySel'); CITIES.forEach(c=>{ const o=document.createElement('option'); o.value=o.textContent=c.name; sel.append(o); });
+  const savedCity=safeLS('city'); if(savedCity){ const c=CITIES.find(c=>c.name===savedCity); if(c) city=c; } sel.value=city.name;
+  sel.onchange=()=>{ city=CITIES.find(c=>c.name===sel.value)||CITIES[0]; safeLS('city',city.name); updateSunMoon(); auroraForCity(); hamStatus(); focusOn(city.lat,city.lon); };
+  const u=safeLS('tdUrl'); if(u) $('#tdUrl').value=u; else if(location.protocol.startsWith('http')) $('#tdUrl').value=`ws://${location.host}`;
+  const k=safeLS('eiaKey'); if(k) $('#eiaKey').value=k;
+  buildEarth(); loadConflicts(); updateSunMoon(); computePlanets(); setTimeout(computeCosmicEvents,300);
+  loadSunImg(); loadAurora(); loadXrays(); loadSpaceWx();
+  setInterval(loadSunImg,15*60e3); setInterval(loadAurora,10*60e3); setInterval(loadXrays,5*60e3); setInterval(loadSpaceWx,10*60e3); setInterval(hamStatus,60e3);
+  loadWxGrid(); loadCyclones(); setInterval(loadWxGrid,3600e3); setInterval(loadCyclones,15*60e3);
+  loadQuakes(); loadQuakesMonth(); loadEonet(); loadGdacs(); loadISS(); loadSolar(); loadClimate(); loadWeather(); loadCrypto(); loadBrent(); loadNews();
+  setInterval(loadQuakes,60e3); setInterval(loadQuakesMonth,15*60e3); setInterval(loadEonet,10*60e3); setInterval(loadGdacs,10*60e3);
+  setInterval(loadISS,5e3); setInterval(loadSolar,10*60e3); setInterval(loadClimate,6*3600e3); setInterval(loadWeather,15*60e3);
+  setInterval(loadCrypto,60e3); setInterval(loadBrent,30*60e3); setInterval(loadNews,15*60e3);
+  setInterval(updateSunMoon,30e3); setInterval(computePlanets,10*60e3); setInterval(computeCosmicEvents,3600e3);
+  restartSnapTimer();
+  applyTheme(safeLS('theme')||'all');
+  if(location.protocol.startsWith('http') && /localhost|127\.0\.0\.1/.test(location.host)){ wantWS=true; setT('#tdBtn','desligar'); tdConnect(); }
+  frame();
+})();
+</script>
+</body>
+</html>
